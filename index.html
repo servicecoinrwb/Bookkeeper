@@ -58,8 +58,15 @@
 
             <!-- Header -->
             <header class="mb-8">
-                <h1 class="text-3xl font-bold text-gray-900">Bookkeeper Pro</h1>
-                <p class="text-gray-500 mt-1">Organize bank transactions for QuickBooks Desktop.</p>
+                <div class="flex justify-between items-center">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900">Bookkeeper Pro</h1>
+                        <p class="text-gray-500 mt-1">Organize bank transactions for QuickBooks Desktop.</p>
+                    </div>
+                    <a href="https://www.communitychoicecu.com/" target="_blank" class="bg-white text-indigo-600 border border-indigo-600 px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors text-sm font-semibold">
+                        Go to Bank Website
+                    </a>
+                </div>
             </header>
 
             <!-- Main Content -->
@@ -84,7 +91,7 @@
                 <!-- Step 2: Categorization & Export (hidden initially) -->
                 <div id="data-section" class="hidden mt-8">
                     <!-- Dashboard -->
-                    <div class="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
                         <div class="bg-green-50 border-l-4 border-green-500 text-green-800 p-4 rounded-lg shadow-sm">
                             <div class="text-sm font-medium">TOTAL INCOME</div>
                             <div id="total-income" class="text-2xl font-bold">$0.00</div>
@@ -105,6 +112,10 @@
                             <div class="text-sm font-medium">A/P (YOU OWE)</div>
                             <div id="total-ap" class="text-2xl font-bold">$0.00</div>
                         </div>
+                        <div class="bg-purple-50 border-l-4 border-purple-500 text-purple-800 p-4 rounded-lg shadow-sm">
+                            <div class="text-sm font-medium">UNRECONCILED</div>
+                            <div id="total-unreconciled" class="text-2xl font-bold">0</div>
+                        </div>
                     </div>
 
                     <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
@@ -112,11 +123,12 @@
                             <h2 class="text-xl font-semibold">Step 2: Process Transactions</h2>
                              <!-- Tab Navigation -->
                             <div class="mt-4 md:mt-0 border-b border-gray-200">
-                                <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+                                <nav class="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
                                     <button id="tab-transactions" class="border-indigo-500 text-indigo-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm" aria-current="page">Transactions</button>
                                     <button id="tab-jobs" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Job Profitability</button>
                                     <button id="tab-ar" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/R (Invoices)</button>
                                     <button id="tab-ap" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/P (Bills)</button>
+                                    <button id="tab-reports" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Reports</button>
                                     <button id="tab-guide" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Bookkeeping Guide</button>
                                 </nav>
                             </div>
@@ -156,6 +168,7 @@
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
                                         <tr>
+                                            <th scope="col" class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rec</th>
                                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
@@ -229,6 +242,14 @@
                                     </thead>
                                     <tbody id="ap-table" class="bg-white divide-y divide-gray-200"></tbody>
                                 </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Reports View -->
+                        <div id="view-reports" class="hidden">
+                            <h3 class="text-xl font-semibold mb-4">Profit & Loss Statement</h3>
+                            <div id="report-container" class="prose max-w-none prose-indigo">
+                                <!-- P&L Report will be generated here -->
                             </div>
                         </div>
 
@@ -388,6 +409,7 @@
             const netTotalEl = document.getElementById('net-total');
             const totalAREl = document.getElementById('total-ar');
             const totalAPEl = document.getElementById('total-ap');
+            const totalUnreconciledEl = document.getElementById('total-unreconciled');
 
             const exportButton = document.getElementById('export-button');
             const saveSessionButton = document.getElementById('save-session-button');
@@ -400,6 +422,7 @@
                 jobs: document.getElementById('tab-jobs'),
                 ar: document.getElementById('tab-ar'),
                 ap: document.getElementById('tab-ap'),
+                reports: document.getElementById('tab-reports'),
                 guide: document.getElementById('tab-guide'),
             };
             const views = {
@@ -407,6 +430,7 @@
                 jobs: document.getElementById('view-jobs'),
                 ar: document.getElementById('view-ar'),
                 ap: document.getElementById('view-ap'),
+                reports: document.getElementById('view-reports'),
                 guide: document.getElementById('view-guide'),
             };
 
@@ -415,6 +439,7 @@
             const apTableBody = document.getElementById('ap-table');
             const quickbooksInputs = document.getElementById('quickbooks-inputs');
             const actionButtonsContainer = document.getElementById('action-buttons-container');
+            const reportContainer = document.getElementById('report-container');
 
             // Modal elements
             const editModal = document.getElementById('edit-modal');
@@ -561,12 +586,13 @@
                 renderJobProfitability(transactions);
                 renderAR(arItems);
                 renderAP(apItems);
+                renderReports(transactions);
             };
 
             const renderTransactions = (data) => {
                 transactionTableBody.innerHTML = '';
                 if (data.length === 0) {
-                     transactionTableBody.innerHTML = `<tr><td colspan="6" class="text-center py-10 text-gray-500">No transactions for the selected period.</td></tr>`;
+                     transactionTableBody.innerHTML = `<tr><td colspan="7" class="text-center py-10 text-gray-500">No transactions for the selected period.</td></tr>`;
                      return;
                 }
                 
@@ -575,6 +601,9 @@
                     const amountClass = tx.amount >= 0 ? 'text-green-600' : 'text-red-600';
                     const categoryClass = tx.category === 'Uncategorized' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800';
                     row.innerHTML = `
+                        <td class="px-2 py-4 whitespace-nowrap text-sm text-center">
+                            <input type="checkbox" data-id="${tx.id}" class="reconcile-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" ${tx.reconciled ? 'checked' : ''}>
+                        </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(tx.date).toLocaleDateString()}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 max-w-xs truncate" title="${tx.description}">${tx.description}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${amountClass}">${formatCurrency(tx.amount)}</td>
@@ -597,12 +626,14 @@
 
                 const totalAR = arItems.filter(i => i.status === 'unpaid').reduce((sum, i) => sum + i.amount, 0);
                 const totalAP = apItems.filter(i => i.status === 'unpaid').reduce((sum, i) => sum + i.amount, 0);
+                const unreconciledCount = transactions.filter(tx => !tx.reconciled).length;
 
                 totalIncomeEl.textContent = formatCurrency(income);
                 totalExpenseEl.textContent = formatCurrency(Math.abs(expense));
                 netTotalEl.textContent = formatCurrency(net);
                 totalAREl.textContent = formatCurrency(totalAR);
                 totalAPEl.textContent = formatCurrency(totalAP);
+                totalUnreconciledEl.textContent = unreconciledCount;
 
                 netTotalEl.parentElement.classList.toggle('bg-red-50', net < 0);
                 netTotalEl.parentElement.classList.toggle('border-red-500', net < 0);
@@ -669,6 +700,7 @@
                                 notes: '',
                                 job: '',
                                 status: 'cleared', // Bank transactions are considered cleared
+                                reconciled: false,
                             };
                         }).filter(Boolean); 
 
@@ -857,6 +889,67 @@
                     jobTableBody.appendChild(row);
                 });
             };
+
+            const renderReports = (data) => {
+                const incomeByCategory = {};
+                const expensesByCategory = {};
+                let totalIncome = 0;
+                let totalExpense = 0;
+
+                data.forEach(tx => {
+                    if (tx.amount >= 0) {
+                        if (!incomeByCategory[tx.category]) incomeByCategory[tx.category] = 0;
+                        incomeByCategory[tx.category] += tx.amount;
+                        totalIncome += tx.amount;
+                    } else {
+                        if (!expensesByCategory[tx.category]) expensesByCategory[tx.category] = 0;
+                        expensesByCategory[tx.category] += tx.amount;
+                        totalExpense += tx.amount;
+                    }
+                });
+
+                let reportHTML = `
+                    <div class="space-y-6">
+                        <div>
+                            <h4 class="font-semibold text-lg mb-2">Income</h4>
+                            <div class="divide-y divide-gray-200">
+                                ${Object.keys(incomeByCategory).sort().map(cat => `
+                                    <div class="flex justify-between py-2">
+                                        <span>${cat}</span>
+                                        <span>${formatCurrency(incomeByCategory[cat])}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="flex justify-between py-2 font-bold border-t-2 mt-2">
+                                <span>Total Income</span>
+                                <span>${formatCurrency(totalIncome)}</span>
+                            </div>
+                        </div>
+
+                        <div>
+                            <h4 class="font-semibold text-lg mb-2">Expenses</h4>
+                            <div class="divide-y divide-gray-200">
+                                ${Object.keys(expensesByCategory).sort().map(cat => `
+                                    <div class="flex justify-between py-2">
+                                        <span>${cat}</span>
+                                        <span>${formatCurrency(Math.abs(expensesByCategory[cat]))}</span>
+                                    </div>
+                                `).join('')}
+                            </div>
+                            <div class="flex justify-between py-2 font-bold border-t-2 mt-2">
+                                <span>Total Expenses</span>
+                                <span>${formatCurrency(Math.abs(totalExpense))}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex justify-between py-3 font-extrabold text-xl border-t-4 mt-4">
+                            <span>Net Profit</span>
+                            <span class="${(totalIncome + totalExpense) >= 0 ? 'text-green-600' : 'text-red-600'}">${formatCurrency(totalIncome + totalExpense)}</span>
+                        </div>
+                    </div>
+                `;
+                reportContainer.innerHTML = reportHTML;
+            };
             
             const populateMonthFilter = () => {
                 const months = new Set();
@@ -893,9 +986,11 @@
                     }
                 });
 
-                const showInputs = ['transactions', 'jobs', 'ar', 'ap'].includes(activeTab);
+                const showInputs = ['transactions', 'jobs'].includes(activeTab);
+                const showActionButtons = ['transactions', 'jobs', 'ar', 'ap'].includes(activeTab);
+                
                 quickbooksInputs.style.display = showInputs ? 'grid' : 'none';
-                actionButtonsContainer.style.display = showInputs ? 'flex' : 'none';
+                actionButtonsContainer.style.display = showActionButtons ? 'flex' : 'none';
             };
 
 
@@ -1012,6 +1107,14 @@
                     renderAllData();
                 }
             };
+            
+            const toggleReconciledStatus = (id) => {
+                 const item = allData.find(d => d.id === id);
+                if (item && item.type === 'transaction') {
+                    item.reconciled = !item.reconciled;
+                    renderAllData();
+                }
+            };
 
             // --- EVENT LISTENERS ---
             csvFileInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
@@ -1029,6 +1132,9 @@
             transactionTableBody.addEventListener('click', (e) => {
                 if (e.target.classList.contains('edit-btn')) {
                     openEditModal(e.target.dataset.id);
+                }
+                if (e.target.classList.contains('reconcile-checkbox')) {
+                    toggleReconciledStatus(e.target.dataset.id);
                 }
             });
 
@@ -1071,10 +1177,11 @@
             cancelDeleteButton.addEventListener('click', closeConfirmModal);
 
             const guideContent = [
-                 { title: "1. Bank Reconciliation", content: "<p class='mb-2'><strong>What it is:</strong> Comparing your bank statements against your bookkeeping records to ensure they match. This helps catch errors, fraudulent transactions, and bank fees.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>At the end of each month, get your bank statement.</li><li>Use the \"Transactions\" tab in this tool to check off each transaction against your bank statement.</li><li>Ensure the final balance in Bookkeeper Pro matches your bank statement's ending balance.</li><li>Investigate any discrepancies immediately.</li></ol>" },
+                 { title: "1. Bank Reconciliation", content: "<p class='mb-2'><strong>What it is:</strong> Comparing your bank statements against your bookkeeping records to ensure they match. This helps catch errors, fraudulent transactions, and bank fees.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>At the end of each month, get your bank statement.</li><li>Use the \"Transactions\" tab in this tool. Check the 'Rec' box for each transaction that matches your bank statement.</li><li>The 'Unreconciled' count on the dashboard will help you track your progress.</li><li>Investigate any discrepancies immediately.</li></ol>" },
                 { title: "2. Job Costing & Profitability", content: "<p class='mb-2'><strong>What it is:</strong> Tracking all income and expenses associated with a specific job or customer to determine its profitability.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>In the \"Transactions\" view, click 'Edit' on each transaction.</li><li>Assign a unique \"Job/Customer Name\" to all related income (customer payments) and expenses (parts, materials, labor).</li><li>Switch to the \"Job Profitability\" tab to see a real-time summary of profit for each job.</li><li>Use this insight to adjust your pricing and identify your most profitable types of work.</li></ol>" },
                 { title: "3. Accounts Payable (A/P) & Receivable (A/R)", content: "<p class='mb-2'><strong>Accounts Payable (A/P):</strong> Money you owe to suppliers. Use the 'A/P (Bills)' tab to manually enter bills you receive. Track what's been paid and what's outstanding.</p><p class='mb-2'><strong>Accounts Receivable (A/R):</strong> Money customers owe you. Use the 'A/R (Invoices)' tab to enter invoices you send out. This helps you track who has paid and follow up on overdue amounts.</p><p><strong>Reconciliation:</strong> When you pay a bill or receive a payment, the transaction will appear in your bank feed on the 'Transactions' tab after you import your CSV. You should then mark the corresponding item in the A/P or A/R tab as 'Paid'.</p>" },
-                { title: "4. Inventory Management", content: "<p class='mb-2'><strong>What it is:</strong> Tracking the parts and equipment you have in stock, both in your shop and in your service vans.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>Keep a simple spreadsheet or use dedicated software to list all inventory items.</li><li>When you purchase new parts, categorize the transaction as \"Inventory Purchase\" or similar.</li><li>When you use a part on a job, note it in your job costs. This moves the cost from an asset (inventory) to an expense (Cost of Goods Sold).</li><li>Periodically count your physical inventory to ensure it matches your records.</li></ol>" }
+                { title: "4. Inventory Management", content: "<p class='mb-2'><strong>What it is:</strong> Tracking the parts and equipment you have in stock, both in your shop and in your service vans.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>Keep a simple spreadsheet or use dedicated software to list all inventory items.</li><li>When you purchase new parts, categorize the transaction as \"Inventory Purchase\" or similar.</li><li>When you use a part on a job, note it in your job costs. This moves the cost from an asset (inventory) to an expense (Cost of Goods Sold).</li><li>Periodically count your physical inventory to ensure it matches your records.</li></ol>" },
+                { title: "5. Splitting Transactions", content: "<p class='mb-2'><strong>What it is:</strong> Sometimes a single purchase needs to be divided among multiple categories or jobs (e.g., a hardware store run buys parts for two different jobs).</p><p><strong>How to handle it (manually):</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>Currently, this tool doesn't support automatic splitting.</li><li>The best practice is to enter the items as separate bills in the 'A/P (Bills)' tab, one for each category/job.</li><li>When the single transaction appears in your bank feed, categorize it to a 'Clearing' or 'Suspense' account.</li><li>Then, in QuickBooks, you can reconcile the single bank transaction against the multiple bills you've created.</li></ol>" }
             ];
             const accordionContainer = document.getElementById('accordion-container');
             accordionContainer.innerHTML = guideContent.map(item => `
@@ -1117,4 +1224,5 @@
     </script>
 </body>
 </html>
+
 
