@@ -614,7 +614,7 @@
                 const apItems = filteredData.filter(d => d.type === 'ap');
 
                 renderTransactions(transactions);
-                updateDashboard(transactions, arItems, apItems);
+                updateDashboard(transactions, allData.filter(d=>d.type === 'ar'), apItems);
                 renderJobProfitability(transactions);
                 renderAR(arItems);
                 renderAP(apItems);
@@ -698,6 +698,8 @@
                     skipEmptyLines: true,
                     complete: (results) => {
                         let newCategoriesFound = false;
+                        const existingTxKeys = new Set(allData.filter(d => d.type === 'transaction').map(tx => `${tx.date}-${tx.description}-${tx.amount}`));
+
                         const importedTransactions = results.data.map((row, index) => {
                              let dateKey = Object.keys(row).find(k => k.toLowerCase().includes('date'));
                             let descriptionKey = Object.keys(row).find(k => k.toLowerCase().includes('description') || k.toLowerCase().includes('memo'));
@@ -735,11 +737,14 @@
                                 categories.push(initialCategory);
                                 newCategoriesFound = true;
                             }
+                            const date = new Date(row[dateKey]).toISOString().split('T')[0];
+                            const key = `${date}-${row[descriptionKey] || 'No Description'}-${amount}`;
+                            if(existingTxKeys.has(key)) return null;
 
                             return {
                                 id: `tx-${Date.now()}-${index}`,
                                 type: 'transaction',
-                                date: new Date(row[dateKey]).toISOString().split('T')[0],
+                                date: date,
                                 description: row[descriptionKey] || 'No Description',
                                 amount: isNaN(amount) ? 0 : amount,
                                 category: initialCategory,
@@ -750,7 +755,8 @@
                             };
                         }).filter(Boolean); 
 
-                        allData = [...allData.filter(d => d.type !== 'transaction'), ...importedTransactions];
+                        allData.push(...importedTransactions);
+                        showToast(`${importedTransactions.length} new transactions added.`);
                         
                         if (newCategoriesFound) {
                             categories.sort();
@@ -803,7 +809,7 @@
                         const existingInvoiceNumbers = new Set(allData.filter(d => d.type === 'ar').map(d => d.number));
                         const newInvoices = importedInvoices.filter(inv => inv.number && !existingInvoiceNumbers.has(inv.number));
 
-                        allData = [...allData, ...newInvoices];
+                        allData.push(...newInvoices);
                         
                         populateDateFilters();
                         renderAllData();
