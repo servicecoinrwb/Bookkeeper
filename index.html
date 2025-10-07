@@ -58,14 +58,19 @@
 
             <!-- Header -->
             <header class="mb-8">
-                <div class="flex justify-between items-center">
+                <div class="flex flex-wrap justify-between items-center gap-4">
                     <div>
                         <h1 class="text-3xl font-bold text-gray-900">Bookkeeper Pro</h1>
                         <p class="text-gray-500 mt-1">Organize bank transactions for QuickBooks Desktop.</p>
                     </div>
-                    <a href="https://www.communitychoicecu.com/" target="_blank" class="bg-white text-indigo-600 border border-indigo-600 px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors text-sm font-semibold">
-                        Go to Bank Website
-                    </a>
+                    <div class="flex items-center gap-4">
+                        <a href="https://www.appsheet.com/start/90811d78-1165-4542-bbaa-af393ca455a5?platform=desktop#appName=SVC-QApp-721685306&vss=H4sIAAAAAAAAA6WPu27DMAxF_-XOSuEYcBJoTTsEQTq0RoZUGVSbBoTYkhEpLxj691J5oEC3tiMPeUjeAUdDp_egqx3kx_BdLekCiUGhvPSkIBXmzoa9axWEwqvubnBhj85U5BUi4lY8_EAecvidLv93XcDUZINpDO3TrmTyjrvH7WQxeDiIAt0h6M-Wrg8n5z78c1LgzbnApNE-lMlg9KyDZrHrmedZXozG2SibluNCZoUsZk-TfLJBjHylcdXBU73mcH8I5Rf25dxrW69czV81uvUUvwAeLewmtwEAAA==&view=Invoices" target="_blank" class="bg-white text-indigo-600 border border-indigo-600 px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors text-sm font-semibold">
+                            Go to Service App
+                        </a>
+                        <a href="https://www.communitychoicecu.com/" target="_blank" class="bg-white text-indigo-600 border border-indigo-600 px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors text-sm font-semibold">
+                            Go to Bank Website
+                        </a>
+                    </div>
                 </div>
             </header>
 
@@ -207,7 +212,13 @@
                         
                         <!-- Accounts Receivable View -->
                         <div id="view-ar" class="hidden">
-                            <button id="add-invoice-button" class="mb-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Add New Invoice</button>
+                            <div class="flex flex-wrap items-center gap-4 mb-4">
+                                <button id="add-invoice-button" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Add New Invoice</button>
+                                <label for="invoice-csv-file" class="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg shadow-sm hover:bg-blue-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                    Import Invoice CSV
+                                </label>
+                                <input type="file" id="invoice-csv-file" class="hidden" accept=".csv">
+                            </div>
                             <div class="overflow-x-auto table-scrollbar">
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
@@ -247,10 +258,16 @@
                         
                         <!-- Reports View -->
                         <div id="view-reports" class="hidden">
-                            <h3 class="text-xl font-semibold mb-4">Profit & Loss Statement</h3>
-                            <div id="report-container" class="prose max-w-none prose-indigo">
-                                <!-- P&L Report will be generated here -->
+                             <div class="mb-4 border-b border-gray-200">
+                                <nav class="-mb-px flex space-x-8" aria-label="Report Tabs">
+                                    <button id="report-tab-pl" class="border-indigo-500 text-indigo-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Profit & Loss</button>
+                                    <button id="report-tab-ar-aging" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/R Aging</button>
+                                    <button id="report-tab-ap-aging" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/P Aging</button>
+                                </nav>
                             </div>
+                            <div id="report-pl-content" class="prose max-w-none prose-indigo"></div>
+                            <div id="report-ar-aging-content" class="hidden prose max-w-none prose-indigo"></div>
+                            <div id="report-ap-aging-content" class="hidden prose max-w-none prose-indigo"></div>
                         </div>
 
 
@@ -400,6 +417,7 @@
 
             // --- DOM ELEMENTS ---
             const csvFileInput = document.getElementById('csv-file');
+            const invoiceCsvFileInput = document.getElementById('invoice-csv-file');
             const fileInfo = document.getElementById('file-info');
             const uploadSection = document.getElementById('upload-section');
             const dataSection = document.getElementById('data-section');
@@ -439,7 +457,16 @@
             const apTableBody = document.getElementById('ap-table');
             const quickbooksInputs = document.getElementById('quickbooks-inputs');
             const actionButtonsContainer = document.getElementById('action-buttons-container');
-            const reportContainer = document.getElementById('report-container');
+            const reportContainer = document.getElementById('report-pl-content');
+
+            // Report Tab Elements
+            const reportTabPl = document.getElementById('report-tab-pl');
+            const reportTabArAging = document.getElementById('report-tab-ar-aging');
+            const reportTabApAging = document.getElementById('report-tab-ap-aging');
+            const reportPlContent = document.getElementById('report-pl-content');
+            const reportArAgingContent = document.getElementById('report-ar-aging-content');
+            const reportApAgingContent = document.getElementById('report-ap-aging-content');
+
 
             // Modal elements
             const editModal = document.getElementById('edit-modal');
@@ -522,7 +549,7 @@
                 allData = [];
                 dataSection.classList.add('hidden');
                 uploadSection.classList.remove('hidden');
-                monthFilterContainer.classList.add('hidden');
+                if(monthFilterContainer) monthFilterContainer.classList.add('hidden');
                 fileInfo.textContent = '';
                 closeConfirmModal();
                  showToast('Session data cleared.');
@@ -537,7 +564,7 @@
                         renderAllData();
                         uploadSection.classList.add('hidden');
                         dataSection.classList.remove('hidden');
-                        monthFilterContainer.classList.remove('hidden');
+                        if(monthFilterContainer) monthFilterContainer.classList.remove('hidden');
                     }
                 }
             };
@@ -586,7 +613,7 @@
                 renderJobProfitability(transactions);
                 renderAR(arItems);
                 renderAP(apItems);
-                renderReports(transactions);
+                renderReports(transactions, arItems, apItems);
             };
 
             const renderTransactions = (data) => {
@@ -718,7 +745,7 @@
                         
                         uploadSection.classList.add('hidden');
                         dataSection.classList.remove('hidden');
-                        monthFilterContainer.classList.remove('hidden');
+                        if(monthFilterContainer) monthFilterContainer.classList.remove('hidden');
                     },
                     error: (error) => {
                         console.error('CSV Parsing Error:', error);
@@ -727,6 +754,48 @@
                 });
             };
             
+            const handleInvoiceFileSelect = (file) => {
+                 if (!file) return;
+                
+                showToast(`Importing ${file.name}...`);
+                Papa.parse(file, {
+                    header: true,
+                    skipEmptyLines: true,
+                    complete: (results) => {
+                        const importedInvoices = results.data.map((row, index) => {
+                            const amountString = row['Grand Total'] || '$0.00';
+                            const amount = parseFloat(amountString.replace(/[^0-9.-]+/g, ""));
+                            const transDate = row['TransDate'];
+                            if(!transDate) return null;
+
+                            return {
+                                id: `ar-${Date.now()}-${index}`,
+                                type: 'ar',
+                                party: row['Customer'] || 'N/A',
+                                number: row['INVNum'] || 'N/A',
+                                date: new Date(transDate).toISOString().split('T')[0],
+                                amount: isNaN(amount) ? 0 : amount,
+                                status: (row['Invoice Status'] || '').toLowerCase() === 'paid' ? 'paid' : 'unpaid'
+                            };
+                        }).filter(Boolean);
+
+                        // Prevent duplicates by checking invoice number
+                        const existingInvoiceNumbers = new Set(allData.filter(d => d.type === 'ar').map(d => d.number));
+                        const newInvoices = importedInvoices.filter(inv => inv.number && !existingInvoiceNumbers.has(inv.number));
+
+                        allData = [...allData, ...newInvoices];
+                        
+                        populateMonthFilter();
+                        renderAllData();
+                        showToast(`${newInvoices.length} new invoices imported.`);
+                    },
+                    error: (error) => {
+                        console.error('Invoice CSV Parsing Error:', error);
+                        showToast('Error parsing invoice file.', true);
+                    }
+                });
+            }
+
             const openEditModal = (transactionId) => {
                 const tx = allData.find(t => t.id === transactionId);
                 if (!tx) return;
@@ -890,7 +959,13 @@
                 });
             };
 
-            const renderReports = (data) => {
+            const renderReports = (transactions, arItems, apItems) => {
+                renderPLReport(transactions);
+                renderAgingReport('ar', arItems);
+                renderAgingReport('ap', apItems);
+            }
+            
+            const renderPLReport = (data) => {
                 const incomeByCategory = {};
                 const expensesByCategory = {};
                 let totalIncome = 0;
@@ -918,7 +993,7 @@
                                         <span>${cat}</span>
                                         <span>${formatCurrency(incomeByCategory[cat])}</span>
                                     </div>
-                                `).join('')}
+                                `).join('') || `<div class="py-2 text-gray-500">No income recorded.</div>`}
                             </div>
                             <div class="flex justify-between py-2 font-bold border-t-2 mt-2">
                                 <span>Total Income</span>
@@ -934,7 +1009,7 @@
                                         <span>${cat}</span>
                                         <span>${formatCurrency(Math.abs(expensesByCategory[cat]))}</span>
                                     </div>
-                                `).join('')}
+                                `).join('') || `<div class="py-2 text-gray-500">No expenses recorded.</div>`}
                             </div>
                             <div class="flex justify-between py-2 font-bold border-t-2 mt-2">
                                 <span>Total Expenses</span>
@@ -948,7 +1023,59 @@
                         </div>
                     </div>
                 `;
-                reportContainer.innerHTML = reportHTML;
+                reportPlContent.innerHTML = reportHTML;
+            };
+
+            const renderAgingReport = (type, data) => {
+                const today = new Date();
+                const buckets = {
+                    current: [],
+                    '1-30': [],
+                    '31-60': [],
+                    '61-90': [],
+                    '90+': []
+                };
+
+                data.filter(item => item.status === 'unpaid').forEach(item => {
+                    const itemDate = new Date(item.date);
+                    const diffTime = Math.abs(today - itemDate);
+                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                    if (diffDays <= 0) buckets.current.push(item);
+                    else if (diffDays <= 30) buckets['1-30'].push(item);
+                    else if (diffDays <= 60) buckets['31-60'].push(item);
+                    else if (diffDays <= 90) buckets['61-90'].push(item);
+                    else buckets['90+'].push(item);
+                });
+                
+                const generateTableHTML = (bucketData) => {
+                    if (bucketData.length === 0) return '<p class="text-gray-500">Nothing in this period.</p>';
+                    let table = '<table class="w-full text-left"><thead><tr><th class="py-2">Customer/Vendor</th><th class="py-2">#</th><th class="py-2 text-right">Amount</th></tr></thead><tbody>';
+                    let total = 0;
+                    bucketData.forEach(item => {
+                        table += `<tr><td class="py-1">${item.party}</td><td class="py-1">${item.number}</td><td class="py-1 text-right">${formatCurrency(item.amount)}</td></tr>`;
+                        total += item.amount;
+                    });
+                    table += `<tr class="font-bold border-t"><td class="py-2">Total</td><td></td><td class="py-2 text-right">${formatCurrency(total)}</td></tr>`;
+                    table += '</tbody></table>';
+                    return table;
+                };
+
+                const reportHTML = `
+                    <div class="space-y-6">
+                        <div><h4 class="font-semibold text-lg mb-2">Current</h4>${generateTableHTML(buckets.current)}</div>
+                        <div><h4 class="font-semibold text-lg mb-2">1-30 Days Overdue</h4>${generateTableHTML(buckets['1-30'])}</div>
+                        <div><h4 class="font-semibold text-lg mb-2">31-60 Days Overdue</h4>${generateTableHTML(buckets['31-60'])}</div>
+                        <div><h4 class="font-semibold text-lg mb-2">61-90 Days Overdue</h4>${generateTableHTML(buckets['61-90'])}</div>
+                        <div><h4 class="font-semibold text-lg mb-2">90+ Days Overdue</h4>${generateTableHTML(buckets['90+'])}</div>
+                    </div>
+                `;
+
+                if (type === 'ar') {
+                    reportArAgingContent.innerHTML = reportHTML;
+                } else {
+                    reportApAgingContent.innerHTML = reportHTML;
+                }
             };
             
             const populateMonthFilter = () => {
@@ -989,8 +1116,8 @@
                 const showInputs = ['transactions', 'jobs'].includes(activeTab);
                 const showActionButtons = ['transactions', 'jobs', 'ar', 'ap'].includes(activeTab);
                 
-                quickbooksInputs.style.display = showInputs ? 'grid' : 'none';
-                actionButtonsContainer.style.display = showActionButtons ? 'flex' : 'none';
+                if (quickbooksInputs) quickbooksInputs.style.display = showInputs ? 'grid' : 'none';
+                if (actionButtonsContainer) actionButtonsContainer.style.display = showActionButtons ? 'flex' : 'none';
             };
 
 
@@ -1118,6 +1245,7 @@
 
             // --- EVENT LISTENERS ---
             csvFileInput.addEventListener('change', (e) => handleFileSelect(e.target.files[0]));
+            invoiceCsvFileInput.addEventListener('change', (e) => handleInvoiceFileSelect(e.target.files[0]));
             
             const dropzone = csvFileInput.parentElement;
             dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('bg-gray-200'); });
@@ -1176,12 +1304,33 @@
             confirmDeleteButton.addEventListener('click', clearSession);
             cancelDeleteButton.addEventListener('click', closeConfirmModal);
 
+             const switchReportView = (activeReport) => {
+                [reportPlContent, reportArAgingContent, reportApAgingContent].forEach(el => el.classList.add('hidden'));
+                [reportTabPl, reportTabArAging, reportTabApAging].forEach(el => el.classList.remove('border-indigo-500', 'text-indigo-600'));
+                
+                if (activeReport === 'pl') {
+                    reportPlContent.classList.remove('hidden');
+                    reportTabPl.classList.add('border-indigo-500', 'text-indigo-600');
+                } else if (activeReport === 'ar-aging') {
+                    reportArAgingContent.classList.remove('hidden');
+                    reportTabArAging.classList.add('border-indigo-500', 'text-indigo-600');
+                } else if (activeReport === 'ap-aging') {
+                    reportApAgingContent.classList.remove('hidden');
+                    reportTabApAging.classList.add('border-indigo-500', 'text-indigo-600');
+                }
+            };
+            reportTabPl.addEventListener('click', () => switchReportView('pl'));
+            reportTabArAging.addEventListener('click', () => switchReportView('ar-aging'));
+            reportTabApAging.addEventListener('click', () => switchReportView('ap-aging'));
+
+
             const guideContent = [
                  { title: "1. Bank Reconciliation", content: "<p class='mb-2'><strong>What it is:</strong> Comparing your bank statements against your bookkeeping records to ensure they match. This helps catch errors, fraudulent transactions, and bank fees.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>At the end of each month, get your bank statement.</li><li>Use the \"Transactions\" tab in this tool. Check the 'Rec' box for each transaction that matches your bank statement.</li><li>The 'Unreconciled' count on the dashboard will help you track your progress.</li><li>Investigate any discrepancies immediately.</li></ol>" },
                 { title: "2. Job Costing & Profitability", content: "<p class='mb-2'><strong>What it is:</strong> Tracking all income and expenses associated with a specific job or customer to determine its profitability.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>In the \"Transactions\" view, click 'Edit' on each transaction.</li><li>Assign a unique \"Job/Customer Name\" to all related income (customer payments) and expenses (parts, materials, labor).</li><li>Switch to the \"Job Profitability\" tab to see a real-time summary of profit for each job.</li><li>Use this insight to adjust your pricing and identify your most profitable types of work.</li></ol>" },
-                { title: "3. Accounts Payable (A/P) & Receivable (A/R)", content: "<p class='mb-2'><strong>Accounts Payable (A/P):</strong> Money you owe to suppliers. Use the 'A/P (Bills)' tab to manually enter bills you receive. Track what's been paid and what's outstanding.</p><p class='mb-2'><strong>Accounts Receivable (A/R):</strong> Money customers owe you. Use the 'A/R (Invoices)' tab to enter invoices you send out. This helps you track who has paid and follow up on overdue amounts.</p><p><strong>Reconciliation:</strong> When you pay a bill or receive a payment, the transaction will appear in your bank feed on the 'Transactions' tab after you import your CSV. You should then mark the corresponding item in the A/P or A/R tab as 'Paid'.</p>" },
-                { title: "4. Inventory Management", content: "<p class='mb-2'><strong>What it is:</strong> Tracking the parts and equipment you have in stock, both in your shop and in your service vans.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>Keep a simple spreadsheet or use dedicated software to list all inventory items.</li><li>When you purchase new parts, categorize the transaction as \"Inventory Purchase\" or similar.</li><li>When you use a part on a job, note it in your job costs. This moves the cost from an asset (inventory) to an expense (Cost of Goods Sold).</li><li>Periodically count your physical inventory to ensure it matches your records.</li></ol>" },
-                { title: "5. Splitting Transactions", content: "<p class='mb-2'><strong>What it is:</strong> Sometimes a single purchase needs to be divided among multiple categories or jobs (e.g., a hardware store run buys parts for two different jobs).</p><p><strong>How to handle it (manually):</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>Currently, this tool doesn't support automatic splitting.</li><li>The best practice is to enter the items as separate bills in the 'A/P (Bills)' tab, one for each category/job.</li><li>When the single transaction appears in your bank feed, categorize it to a 'Clearing' or 'Suspense' account.</li><li>Then, in QuickBooks, you can reconcile the single bank transaction against the multiple bills you've created.</li></ol>" }
+                { title: "3. Accounts Payable (A/P) & Receivable (A/R)", content: "<p class='mb-2'><strong>Accounts Payable (A/P):</strong> Money you owe to suppliers. Use the 'A/P (Bills)' tab to manually enter bills you receive. Track what's been paid and what's outstanding.</p><p class='mb-2'><strong>Accounts Receivable (A/R):</strong> Money customers owe you. Use the 'A/R (Invoices)' tab to enter invoices you send out. You can also import your invoice CSV here. This helps you track who has paid and follow up on overdue amounts.</p><p><strong>Reconciliation:</strong> When you pay a bill or receive a payment, the transaction will appear in your bank feed on the 'Transactions' tab after you import your CSV. You should then mark the corresponding item in the A/P or A/R tab as 'Paid'.</p>" },
+                { title: "4. Using Reports", content: "<p class='mb-2'>The 'Reports' tab provides crucial financial insights:</p><ul class='list-disc list-inside ml-4 space-y-1'><li><strong>Profit & Loss:</strong> Shows your income, expenses, and net profit for the selected period, broken down by category.</li><li><strong>A/R Aging:</strong> Shows who owes you money and how long the payment has been overdue. Use this to prioritize collection calls.</li><li><strong>A/P Aging:</strong> Shows who you owe money to and when your bills are due. Use this to manage your cash flow and pay bills on time.</li></ul>" },
+                { title: "5. Inventory Management", content: "<p class='mb-2'><strong>What it is:</strong> Tracking the parts and equipment you have in stock, both in your shop and in your service vans.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>Keep a simple spreadsheet or use dedicated software to list all inventory items.</li><li>When you purchase new parts, categorize the transaction as \"Inventory Purchase\" or similar.</li><li>When you use a part on a job, note it in your job costs. This moves the cost from an asset (inventory) to an expense (Cost of Goods Sold).</li><li>Periodically count your physical inventory to ensure it matches your records.</li></ol>" },
+                { title: "6. Splitting Transactions", content: "<p class='mb-2'><strong>What it is:</strong> Sometimes a single purchase needs to be divided among multiple categories or jobs (e.g., a hardware store run buys parts for two different jobs).</p><p><strong>How to handle it (manually):</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>Currently, this tool doesn't support automatic splitting.</li><li>The best practice is to enter the items as separate bills in the 'A/P (Bills)' tab, one for each category/job.</li><li>When the single transaction appears in your bank feed, categorize it to a 'Clearing' or 'Suspense' account.</li><li>Then, in QuickBooks, you can reconcile the single bank transaction against the multiple bills you've created.</li></ol>" }
             ];
             const accordionContainer = document.getElementById('accordion-container');
             accordionContainer.innerHTML = guideContent.map(item => `
@@ -1224,5 +1373,4 @@
     </script>
 </body>
 </html>
-
 
