@@ -40,6 +40,14 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
+        #toast {
+            transform: translateX(150%);
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-in-out;
+        }
     </style>
 </head>
 <body class="antialiased text-gray-800">
@@ -59,7 +67,7 @@
                 <!-- Step 1: File Upload -->
                 <div id="upload-section" class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                     <h2 class="text-xl font-semibold mb-4">Step 1: Import Transactions</h2>
-                    <p class="text-gray-600 mb-4">Upload a CSV file from your bank. Make sure it has columns for 'Date', 'Description', and 'Amount'.</p>
+                    <p class="text-gray-600 mb-4">Upload a CSV file from your bank. Or, load a previously saved session.</p>
                     <div class="flex items-center justify-center w-full">
                         <label for="csv-file" class="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
                             <div class="flex flex-col items-center justify-center pt-5 pb-6">
@@ -99,12 +107,13 @@
                                 <nav class="-mb-px flex space-x-8" aria-label="Tabs">
                                     <button id="tab-transactions" class="border-indigo-500 text-indigo-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm" aria-current="page">Transactions</button>
                                     <button id="tab-jobs" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Job Profitability</button>
+                                    <button id="tab-guide" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Bookkeeping Guide</button>
                                 </nav>
                             </div>
                         </div>
                        
                          <!-- QuickBooks Account Inputs -->
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
+                        <div id="quickbooks-inputs" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
                             <div>
                                 <label for="bank-account" class="block text-sm font-medium text-gray-700">QuickBooks Bank Account</label>
                                 <input type="text" id="bank-account" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="e.g., Checking">
@@ -119,6 +128,8 @@
                         <div class="flex flex-wrap items-center gap-4 mb-4">
                             <button id="export-button" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Export to QuickBooks (.iif)</button>
                             <button id="add-category-button" class="bg-gray-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors">Manage Categories</button>
+                             <button id="save-session-button" class="bg-green-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">Save Session</button>
+                            <button id="clear-session-button" class="bg-red-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">Clear Data</button>
                             <!-- Month Filter -->
                             <div id="month-filter-container" class="ml-auto hidden">
                                 <label for="month-filter" class="sr-only">Filter by Month</label>
@@ -170,6 +181,77 @@
                                 </table>
                             </div>
                         </div>
+
+                        <!-- Bookkeeping Guide View -->
+                        <div id="view-guide" class="hidden prose max-w-none prose-indigo">
+                            <h3 class="text-xl font-semibold mb-4">HVAC Bookkeeping Guide</h3>
+                            <div class="space-y-4" id="accordion-container">
+                                <!-- Accordion Item 1 -->
+                                <div class="border rounded-lg">
+                                    <button class="accordion-header w-full text-left p-4 bg-gray-100 hover:bg-gray-200 focus:outline-none flex justify-between items-center">
+                                        <span class="font-medium">1. Bank Reconciliation</span>
+                                        <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    </button>
+                                    <div class="accordion-content p-4 border-t">
+                                        <p class="mb-2"><strong>What it is:</strong> Comparing your bank statements against your bookkeeping records to ensure they match. This helps catch errors, fraudulent transactions, and bank fees.</p>
+                                        <p><strong>How to do it:</strong></p>
+                                        <ol class="list-decimal list-inside ml-4 space-y-1">
+                                            <li>At the end of each month, get your bank statement.</li>
+                                            <li>Use the "Transactions" tab in this tool to check off each transaction against your bank statement.</li>
+                                            <li>Ensure the final balance in Bookkeeper Pro matches your bank statement's ending balance.</li>
+                                            <li>Investigate any discrepancies immediately.</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                                <!-- Accordion Item 2 -->
+                                <div class="border rounded-lg">
+                                    <button class="accordion-header w-full text-left p-4 bg-gray-100 hover:bg-gray-200 focus:outline-none flex justify-between items-center">
+                                        <span class="font-medium">2. Job Costing & Profitability</span>
+                                        <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    </button>
+                                    <div class="accordion-content p-4 border-t">
+                                        <p class="mb-2"><strong>What it is:</strong> Tracking all income and expenses associated with a specific job or customer to determine its profitability.</p>
+                                        <p><strong>How to do it:</strong></p>
+                                        <ol class="list-decimal list-inside ml-4 space-y-1">
+                                            <li>In the "Transactions" view, click 'Edit' on each transaction.</li>
+                                            <li>Assign a unique "Job/Customer Name" to all related income (customer payments) and expenses (parts, materials, labor).</li>
+                                            <li>Switch to the "Job Profitability" tab to see a real-time summary of profit for each job.</li>
+                                            <li>Use this insight to adjust your pricing and identify your most profitable types of work.</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                                 <!-- Accordion Item 3 -->
+                                <div class="border rounded-lg">
+                                    <button class="accordion-header w-full text-left p-4 bg-gray-100 hover:bg-gray-200 focus:outline-none flex justify-between items-center">
+                                        <span class="font-medium">3. Accounts Payable (Bills) & Receivable (Invoices)</span>
+                                        <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    </button>
+                                    <div class="accordion-content p-4 border-t">
+                                        <p class="mb-2"><strong>Accounts Payable (A/P):</strong> Money you owe to suppliers. Track bills from parts distributors, for van maintenance, etc. Pay them on time to maintain good relationships and credit.</p>
+                                        <p class="mb-2"><strong>Accounts Receivable (A/R):</strong> Money customers owe you. Send invoices promptly after a job is complete and follow up on unpaid invoices to ensure healthy cash flow.</p>
+                                        <p><strong>How this tool helps:</strong> When you pay a bill or receive a payment, it will appear in your imported bank transactions. Categorize it appropriately (e.g., "Parts & Materials" for a supplier bill, "Income" for a customer payment) and assign it to the correct job.</p>
+                                    </div>
+                                </div>
+                                <!-- Accordion Item 4 -->
+                                <div class="border rounded-lg">
+                                    <button class="accordion-header w-full text-left p-4 bg-gray-100 hover:bg-gray-200 focus:outline-none flex justify-between items-center">
+                                        <span class="font-medium">4. Inventory Management</span>
+                                        <svg class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                    </button>
+                                    <div class="accordion-content p-4 border-t">
+                                        <p class="mb-2"><strong>What it is:</strong> Tracking the parts and equipment you have in stock, both in your shop and in your service vans.</p>
+                                        <p><strong>How to do it:</strong></p>
+                                         <ol class="list-decimal list-inside ml-4 space-y-1">
+                                            <li>Keep a simple spreadsheet or use dedicated software to list all inventory items.</li>
+                                            <li>When you purchase new parts, categorize the transaction as "Inventory Purchase" or similar.</li>
+                                            <li>When you use a part on a job, note it in your job costs. This moves the cost from an asset (inventory) to an expense (Cost of Goods Sold).</li>
+                                            <li>Periodically count your physical inventory to ensure it matches your records.</li>
+                                        </ol>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
                 </div>
 
@@ -229,6 +311,36 @@
         </div>
     </div>
 
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95">
+            <div class="p-6">
+                <div class="flex items-start">
+                    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900" id="confirm-modal-title">Clear Session Data</h3>
+                        <div class="mt-2">
+                            <p class="text-sm text-gray-500" id="confirm-modal-body">Are you sure you want to clear all saved transaction data? This action cannot be undone.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg">
+                <button id="confirm-delete-button" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">Delete</button>
+                <button id="cancel-delete-button" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 right-5 bg-green-500 text-white py-2 px-4 rounded-lg shadow-md transition-transform duration-300">
+        Session Saved!
+    </div>
+
 
     <script>
         document.addEventListener('DOMContentLoaded', () => {
@@ -249,13 +361,19 @@
             const totalExpenseEl = document.getElementById('total-expense');
             const netTotalEl = document.getElementById('net-total');
             const exportButton = document.getElementById('export-button');
+            const saveSessionButton = document.getElementById('save-session-button');
+            const clearSessionButton = document.getElementById('clear-session-button');
+
 
             // Tab elements
             const tabTransactions = document.getElementById('tab-transactions');
             const tabJobs = document.getElementById('tab-jobs');
+            const tabGuide = document.getElementById('tab-guide');
             const viewTransactions = document.getElementById('view-transactions');
             const viewJobs = document.getElementById('view-jobs');
+            const viewGuide = document.getElementById('view-guide');
             const jobTableBody = document.getElementById('job-table');
+            const quickbooksInputs = document.getElementById('quickbooks-inputs');
 
             // Modal elements
             const editModal = document.getElementById('edit-modal');
@@ -280,7 +398,68 @@
             const monthFilter = document.getElementById('month-filter');
             const monthFilterContainer = document.getElementById('month-filter-container');
 
+            // Confirmation Modal elements
+            const confirmModal = document.getElementById('confirm-modal');
+            const confirmDeleteButton = document.getElementById('confirm-delete-button');
+            const cancelDeleteButton = document.getElementById('cancel-delete-button');
+
+
             // --- FUNCTIONS ---
+             const showToast = (message, isError = false) => {
+                const toast = document.getElementById('toast');
+                toast.textContent = message;
+                toast.classList.toggle('bg-red-500', isError);
+                toast.classList.toggle('bg-green-500', !isError);
+                toast.style.transform = 'translateX(0)';
+                setTimeout(() => {
+                    toast.style.transform = 'translateX(150%)';
+                }, 3000);
+            };
+
+            const saveSession = () => {
+                if (transactions.length > 0) {
+                    localStorage.setItem('bookkeeperTransactions', JSON.stringify(transactions));
+                    showToast('Session saved successfully!');
+                } else {
+                    showToast('No transactions to save.', true);
+                }
+            };
+
+            const openConfirmModal = () => {
+                confirmModal.classList.remove('hidden');
+                setTimeout(() => confirmModal.querySelector('.modal-content').classList.replace('scale-95', 'scale-100'), 10);
+            };
+
+            const closeConfirmModal = () => {
+                confirmModal.querySelector('.modal-content').classList.replace('scale-100', 'scale-95');
+                setTimeout(() => confirmModal.classList.add('hidden'), 300);
+            }
+
+            const clearSession = () => {
+                localStorage.removeItem('bookkeeperTransactions');
+                transactions = [];
+                dataSection.classList.add('hidden');
+                uploadSection.classList.remove('hidden');
+                monthFilterContainer.classList.add('hidden');
+                fileInfo.textContent = '';
+                closeConfirmModal();
+                 showToast('Session data cleared.');
+            };
+            
+            const loadSession = () => {
+                const savedTransactions = localStorage.getItem('bookkeeperTransactions');
+                if (savedTransactions) {
+                    transactions = JSON.parse(savedTransactions);
+                    if (transactions.length > 0) {
+                        populateMonthFilter();
+                        renderAllData();
+                        uploadSection.classList.add('hidden');
+                        dataSection.classList.remove('hidden');
+                        monthFilterContainer.classList.remove('hidden');
+                    }
+                }
+            };
+
 
             const formatCurrency = (amount) => {
                 const value = parseFloat(amount);
@@ -302,12 +481,12 @@
 
             const renderAllData = () => {
                 const selectedMonth = monthFilter.value;
-                let viewTransactions;
+                let filteredTransactions;
 
                 if (selectedMonth === 'all') {
-                    viewTransactions = [...transactions];
+                    filteredTransactions = [...transactions];
                 } else {
-                    viewTransactions = transactions.filter(tx => {
+                    filteredTransactions = transactions.filter(tx => {
                         const date = new Date(tx.date);
                         const year = date.getFullYear();
                         const month = date.getMonth() + 1;
@@ -316,9 +495,9 @@
                     });
                 }
 
-                renderTransactions(viewTransactions);
-                updateDashboard(viewTransactions);
-                renderJobProfitability(viewTransactions);
+                renderTransactions(filteredTransactions);
+                updateDashboard(filteredTransactions);
+                renderJobProfitability(filteredTransactions);
             };
 
             const renderTransactions = (data) => {
@@ -680,18 +859,48 @@
             tabTransactions.addEventListener('click', () => {
                 viewTransactions.classList.remove('hidden');
                 viewJobs.classList.add('hidden');
+                viewGuide.classList.add('hidden');
+                quickbooksInputs.style.display = 'grid';
+
                 tabTransactions.classList.add('border-indigo-500', 'text-indigo-600');
-                tabTransactions.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
-                tabJobs.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+                tabTransactions.classList.remove('border-transparent', 'text-gray-500');
+                
                 tabJobs.classList.remove('border-indigo-500', 'text-indigo-600');
+                tabJobs.classList.add('border-transparent', 'text-gray-500');
+
+                tabGuide.classList.remove('border-indigo-500', 'text-indigo-600');
+                tabGuide.classList.add('border-transparent', 'text-gray-500');
+
             });
             tabJobs.addEventListener('click', () => {
                 viewTransactions.classList.add('hidden');
                 viewJobs.classList.remove('hidden');
+                viewGuide.classList.add('hidden');
+                quickbooksInputs.style.display = 'grid';
+                
                 tabJobs.classList.add('border-indigo-500', 'text-indigo-600');
-                tabJobs.classList.remove('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
-                tabTransactions.classList.add('border-transparent', 'text-gray-500', 'hover:text-gray-700', 'hover:border-gray-300');
+                tabJobs.classList.remove('border-transparent', 'text-gray-500');
+
                 tabTransactions.classList.remove('border-indigo-500', 'text-indigo-600');
+                tabTransactions.classList.add('border-transparent', 'text-gray-500');
+
+                tabGuide.classList.remove('border-indigo-500', 'text-indigo-600');
+                tabGuide.classList.add('border-transparent', 'text-gray-500');
+            });
+            tabGuide.addEventListener('click', () => {
+                viewTransactions.classList.add('hidden');
+                viewJobs.classList.add('hidden');
+                viewGuide.classList.remove('hidden');
+                quickbooksInputs.style.display = 'none';
+
+                tabGuide.classList.add('border-indigo-500', 'text-indigo-600');
+                tabGuide.classList.remove('border-transparent', 'text-gray-500');
+
+                tabTransactions.classList.remove('border-indigo-500', 'text-indigo-600');
+                tabTransactions.classList.add('border-transparent', 'text-gray-500');
+
+                tabJobs.classList.remove('border-indigo-500', 'text-indigo-600');
+                tabJobs.classList.add('border-transparent', 'text-gray-500');
             });
 
 
@@ -715,13 +924,33 @@
                     removeCategory(e.target.dataset.category);
                 }
             });
+
+            document.getElementById('accordion-container').addEventListener('click', e => {
+                const header = e.target.closest('.accordion-header');
+                if (!header) return;
+
+                const content = header.nextElementSibling;
+                const icon = header.querySelector('svg');
+
+                if (content.style.maxHeight) {
+                    content.style.maxHeight = null;
+                    icon.style.transform = 'rotate(0deg)';
+                } else {
+                    document.querySelectorAll('.accordion-content').forEach(el => {
+                        el.style.maxHeight = null;
+                        el.previousElementSibling.querySelector('svg').style.transform = 'rotate(0deg)';
+                    });
+                    content.style.maxHeight = content.scrollHeight + "px";
+                    icon.style.transform = 'rotate(180deg)';
+                }
+            });
             
             // --- INITIALIZATION ---
             loadCategories();
+            loadSession();
         });
     </script>
 </body>
 </html>
-
 
 
