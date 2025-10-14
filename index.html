@@ -48,6 +48,28 @@
             overflow: hidden;
             transition: max-height 0.3s ease-in-out;
         }
+        /* For Searchable Dropdown */
+        .searchable-dropdown {
+            position: relative;
+        }
+        .dropdown-menu {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #d1d5db;
+            border-top: none;
+            border-radius: 0 0 0.375rem 0.375rem;
+            width: 100%;
+            z-index: 10;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .dropdown-item {
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+        }
+        .dropdown-item:hover {
+            background-color: #f3f4f6;
+        }
     </style>
 </head>
 <body class="antialiased text-gray-800">
@@ -158,6 +180,7 @@
                         <div id="action-buttons-container" class="flex flex-wrap items-center gap-4 mb-4">
                             <button id="export-button" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Export to QuickBooks (.iif)</button>
                             <button id="add-category-button" class="bg-gray-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors">Manage Categories</button>
+                             <button id="rules-button" class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors">Categorization Rules</button>
                              <button id="save-session-button" class="bg-green-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">Save Session</button>
                             <button id="clear-session-button" class="bg-red-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">Clear Data</button>
                             <!-- Date Filters -->
@@ -299,11 +322,11 @@
                 
                 <form id="edit-form">
                     <input type="hidden" id="modal-transaction-id">
-                    <div>
+                    <div class="searchable-dropdown">
                         <label for="modal-category" class="block text-sm font-medium text-gray-700">Category</label>
-                        <select id="modal-category" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                            <!-- Options will be inserted here -->
-                        </select>
+                        <input type="text" id="modal-category-search" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md" autocomplete="off">
+                        <div id="modal-category-dropdown" class="dropdown-menu hidden"></div>
+                        <input type="hidden" id="modal-category">
                     </div>
                     <div class="mt-4">
                         <label for="modal-job" class="block text-sm font-medium text-gray-700">Job/Customer Name</label>
@@ -341,6 +364,34 @@
             </div>
         </div>
     </div>
+    
+    <!-- Categorization Rules Modal -->
+    <div id="rules-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-2xl m-4 transform scale-95">
+             <div class="p-6">
+                <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">Categorization Rules</h3>
+                <p class="text-sm text-gray-500 mb-4">Create rules to automatically categorize transactions on import.</p>
+                <div class="grid grid-cols-3 gap-4 mb-4 items-end p-4 bg-gray-50 rounded-lg border">
+                    <div>
+                         <label for="rule-keyword" class="block text-sm font-medium text-gray-700">If description contains:</label>
+                        <input type="text" id="rule-keyword" placeholder="e.g., Speedway" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="rule-category" class="block text-sm font-medium text-gray-700">Set category to:</label>
+                        <select id="rule-category" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select>
+                    </div>
+                    <button id="add-rule-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 h-fit">Add Rule</button>
+                </div>
+                <div id="rules-list" class="max-h-60 overflow-y-auto pr-2">
+                    <!-- Rules list will be populated here -->
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg">
+                <button id="close-rules-modal" type="button" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm">Done</button>
+            </div>
+        </div>
+    </div>
+
 
     <!-- A/P and A/R Modal -->
     <div id="ap-ar-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop">
@@ -403,6 +454,25 @@
         </div>
     </div>
 
+    <!-- Batch Update Modal -->
+    <div id="batch-update-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95">
+            <div class="p-6">
+                 <div class="mt-3 text-center sm:mt-0 sm:text-left">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900">Apply to Similar Transactions?</h3>
+                    <div class="mt-2">
+                        <p class="text-sm text-gray-500" id="batch-update-body">We found X other transactions with a similar description. Would you like to change their category as well?</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg">
+                <button id="batch-update-confirm-button" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">Yes, Apply to All</button>
+                <button id="batch-update-cancel-button" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">No, Just This One</button>
+            </div>
+        </div>
+    </div>
+
+
     <!-- Toast Notification -->
     <div id="toast" class="fixed top-5 right-5 bg-green-500 text-white py-2 px-4 rounded-lg shadow-md transition-transform duration-300">
         Session Saved!
@@ -418,6 +488,7 @@
                 'Utilities', 'Travel', 'Meals', 'Software', 'Marketing',
                 'Parts & Materials', 'Inventory Purchase'
             ];
+            let categorizationRules = [];
 
             // --- DOM ELEMENTS ---
             const csvFileInput = document.getElementById('csv-file');
@@ -479,6 +550,8 @@
             const modalDescription = document.getElementById('modal-description');
             const modalTransactionId = document.getElementById('modal-transaction-id');
             const modalCategory = document.getElementById('modal-category');
+            const modalCategorySearch = document.getElementById('modal-category-search');
+            const modalCategoryDropdown = document.getElementById('modal-category-dropdown');
             const modalJob = document.getElementById('modal-job');
             const modalNotes = document.getElementById('modal-notes');
             const saveButton = document.getElementById('save-button');
@@ -492,6 +565,15 @@
             const newCategoryNameInput = document.getElementById('new-category-name');
             const categoryListContainer = document.getElementById('category-list');
             
+            // Rules Modal elements
+            const rulesModal = document.getElementById('rules-modal');
+            const rulesButton = document.getElementById('rules-button');
+            const closeRulesModalButton = document.getElementById('close-rules-modal');
+            const addRuleBtn = document.getElementById('add-rule-btn');
+            const ruleKeywordInput = document.getElementById('rule-keyword');
+            const ruleCategorySelect = document.getElementById('rule-category');
+            const rulesListContainer = document.getElementById('rules-list');
+
             // AP/AR Modal Elements
             const apArModal = document.getElementById('ap-ar-modal');
             const apArModalTitle = document.getElementById('ap-ar-modal-title');
@@ -508,6 +590,13 @@
             const addInvoiceButton = document.getElementById('add-invoice-button');
             const addBillButton = document.getElementById('add-bill-button');
             
+            // Batch Update Modal
+            const batchUpdateModal = document.getElementById('batch-update-modal');
+            const batchUpdateBody = document.getElementById('batch-update-body');
+            const batchUpdateConfirmButton = document.getElementById('batch-update-confirm-button');
+            const batchUpdateCancelButton = document.getElementById('batch-update-cancel-button');
+
+
             const bankAccountInput = document.getElementById('bank-account');
             const defaultExpenseAccountInput = document.getElementById('default-expense-account');
             const yearFilter = document.getElementById('year-filter');
@@ -554,7 +643,9 @@
 
             const clearSession = () => {
                 localStorage.removeItem('bookkeeperSession');
+                localStorage.removeItem('bookkeeperRules');
                 allData = [];
+                categorizationRules = [];
                 dataSection.classList.add('hidden');
                 uploadSection.classList.remove('hidden');
                 if(dateFilterContainer) dateFilterContainer.classList.add('hidden');
@@ -600,6 +691,18 @@
 
             const saveCategories = () => {
                 localStorage.setItem('bookkeeperCategories', JSON.stringify(categories));
+            };
+
+            const loadRules = () => {
+                const savedRules = localStorage.getItem('bookkeeperRules');
+                if(savedRules) {
+                    categorizationRules = JSON.parse(savedRules);
+                }
+                populateRulesList();
+            };
+            
+            const saveRules = () => {
+                 localStorage.setItem('bookkeeperRules', JSON.stringify(categorizationRules));
             };
 
             const renderAllData = () => {
@@ -738,23 +841,33 @@
                                 return null;
                             }
                             
-                            const initialCategory = (classificationKey && row[classificationKey] && row[classificationKey].trim()) || 'Uncategorized';
+                            const date = new Date(row[dateKey]).toISOString().split('T')[0];
+                            const description = row[descriptionKey] || 'No Description';
+                            const key = `${date}-${description}-${amount}`;
+                            if(existingTxKeys.has(key)) return null;
 
-                            if (initialCategory && !categories.includes(initialCategory)) {
-                                categories.push(initialCategory);
+                            let category = (classificationKey && row[classificationKey] && row[classificationKey].trim()) || 'Uncategorized';
+                            
+                            // Apply rules
+                            for (const rule of categorizationRules) {
+                                if (description.toLowerCase().includes(rule.keyword.toLowerCase())) {
+                                    category = rule.category;
+                                    break;
+                                }
+                            }
+
+                            if (category && !categories.includes(category)) {
+                                categories.push(category);
                                 newCategoriesFound = true;
                             }
-                            const date = new Date(row[dateKey]).toISOString().split('T')[0];
-                            const key = `${date}-${row[descriptionKey] || 'No Description'}-${amount}`;
-                            if(existingTxKeys.has(key)) return null;
 
                             return {
                                 id: `tx-${Date.now()}-${index}`,
                                 type: 'transaction',
                                 date: date,
-                                description: row[descriptionKey] || 'No Description',
+                                description: description,
                                 amount: isNaN(amount) ? 0 : amount,
-                                category: initialCategory,
+                                category: category,
                                 notes: '',
                                 job: '',
                                 status: 'cleared', // Bank transactions are considered cleared
@@ -841,7 +954,9 @@
                 
                 populateCategoryDropdowns();
                 updateJobDatalist();
+                
                 modalCategory.value = tx.category;
+                modalCategorySearch.value = tx.category;
                 
                 editModal.classList.remove('hidden');
                 setTimeout(() => editModal.querySelector('.modal-content').classList.replace('scale-95', 'scale-100'), 10);
@@ -855,18 +970,67 @@
             const saveTransaction = () => {
                 const transactionId = modalTransactionId.value;
                 const tx = allData.find(t => t.id === transactionId);
+                const oldCategory = tx.category;
+                const newCategory = modalCategory.value;
+
                 if (tx) {
-                    tx.category = modalCategory.value;
+                    tx.category = newCategory;
                     tx.job = modalJob.value.trim();
                     tx.notes = modalNotes.value;
                 }
-                renderAllData();
-                saveSession();
+                
                 closeEditModal();
+
+                if (oldCategory !== newCategory) {
+                    const similarUncategorized = allData.filter(t => 
+                        t.type === 'transaction' && 
+                        t.id !== tx.id && 
+                        t.description.toLowerCase().includes(tx.description.split(' ')[0].toLowerCase())
+                    );
+                    
+                    if (similarUncategorized.length > 0) {
+                        batchUpdateBody.textContent = `We found ${similarUncategorized.length} other transactions with a similar description ("${tx.description.split(' ')[0]}..."). Would you like to change their category to "${newCategory}" as well?`;
+                        
+                        const confirmHandler = () => {
+                            similarUncategorized.forEach(t => t.category = newCategory);
+                            closeBatchUpdateModal();
+                            renderAllData();
+                            saveSession();
+                        };
+
+                        const cancelHandler = () => {
+                            closeBatchUpdateModal();
+                            renderAllData();
+                            saveSession();
+                        }
+                        
+                        batchUpdateConfirmButton.onclick = confirmHandler;
+                        batchUpdateCancelButton.onclick = cancelHandler;
+
+                        openBatchUpdateModal();
+
+                    } else {
+                        renderAllData();
+                        saveSession();
+                    }
+                } else {
+                     renderAllData();
+                     saveSession();
+                }
             };
+            
+            const openBatchUpdateModal = () => {
+                batchUpdateModal.classList.remove('hidden');
+            }
+            
+            const closeBatchUpdateModal = () => {
+                batchUpdateModal.classList.add('hidden');
+            }
 
             const populateCategoryDropdowns = () => {
-                modalCategory.innerHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
+                const optionsHTML = categories.map(c => `<option value="${c}">${c}</option>`).join('');
+                ruleCategorySelect.innerHTML = optionsHTML;
+                // Searchable dropdown is populated dynamically on input
             };
 
             const populateCategoryManagementList = () => {
@@ -1370,6 +1534,73 @@
             reportTabArAging.addEventListener('click', () => switchReportView('ar-aging'));
             reportTabApAging.addEventListener('click', () => switchReportView('ap-aging'));
 
+            const populateRulesList = () => {
+                rulesListContainer.innerHTML = '';
+                categorizationRules.forEach((rule, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'flex justify-between items-center p-2 rounded-md hover:bg-gray-100';
+                    item.innerHTML = `
+                        <span>If description contains "<strong>${rule.keyword}</strong>", set category to <strong>${rule.category}</strong>.</span>
+                        <button data-index="${index}" class="delete-rule-btn text-red-500 hover:text-red-700 text-sm font-semibold">Remove</button>
+                    `;
+                    rulesListContainer.appendChild(item);
+                });
+            }
+
+            const addRule = () => {
+                const keyword = ruleKeywordInput.value.trim();
+                const category = ruleCategorySelect.value;
+                if(keyword && category) {
+                    categorizationRules.push({ keyword, category });
+                    saveRules();
+                    populateRulesList();
+                    ruleKeywordInput.value = '';
+                }
+            };
+
+            const removeRule = (index) => {
+                categorizationRules.splice(index, 1);
+                saveRules();
+                populateRulesList();
+            };
+
+            rulesButton.addEventListener('click', () => rulesModal.classList.remove('hidden'));
+            closeRulesModalButton.addEventListener('click', () => rulesModal.classList.add('hidden'));
+            addRuleBtn.addEventListener('click', addRule);
+            rulesListContainer.addEventListener('click', (e) => {
+                if(e.target.classList.contains('delete-rule-btn')) {
+                    removeRule(parseInt(e.target.dataset.index));
+                }
+            });
+
+            // Searchable Category Dropdown Logic
+            modalCategorySearch.addEventListener('input', () => {
+                const searchTerm = modalCategorySearch.value.toLowerCase();
+                const filtered = categories.filter(c => c.toLowerCase().includes(searchTerm));
+                modalCategoryDropdown.innerHTML = filtered.map(c => `<div class="dropdown-item" data-value="${c}">${c}</div>`).join('');
+                modalCategoryDropdown.classList.remove('hidden');
+            });
+
+            modalCategorySearch.addEventListener('focus', () => {
+                 modalCategoryDropdown.innerHTML = categories.map(c => `<div class="dropdown-item" data-value="${c}">${c}</div>`).join('');
+                 modalCategoryDropdown.classList.remove('hidden');
+            });
+            
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.searchable-dropdown')) {
+                    modalCategoryDropdown.classList.add('hidden');
+                }
+            });
+
+            modalCategoryDropdown.addEventListener('click', (e) => {
+                if (e.target.classList.contains('dropdown-item')) {
+                    const value = e.target.dataset.value;
+                    modalCategory.value = value;
+                    modalCategorySearch.value = value;
+                    modalCategoryDropdown.classList.add('hidden');
+                }
+            });
+
 
             const guideContent = [
                  { title: "1. Bank Reconciliation", content: "<p class='mb-2'><strong>What it is:</strong> Comparing your bank statements against your bookkeeping records to ensure they match. This helps catch errors, fraudulent transactions, and bank fees.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>At the end of each month, get your bank statement.</li><li>Use the \"Transactions\" tab in this tool. Check the 'Rec' box for each transaction that matches your bank statement.</li><li>The 'Unreconciled' count on the dashboard will help you track your progress.</li><li>Investigate any discrepancies immediately.</li></ol>" },
@@ -1414,6 +1645,7 @@
             
             // --- INITIALIZATION ---
             loadCategories();
+            loadRules();
             loadSession();
             switchView('transactions');
         });
