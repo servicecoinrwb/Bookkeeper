@@ -610,7 +610,29 @@
 
 
             // --- FUNCTIONS ---
-             const showToast = (message, isError = false) => {
+            const parseDate = (dateString) => {
+                if (!dateString) return null;
+                // Handles MM/DD/YYYY and other standard formats
+                const parts = dateString.match(/(\d+)/g);
+                let date;
+                if (parts && parts.length === 3) {
+                     // Assuming MM/DD/YYYY from CSV
+                    const [month, day, year] = parts.map(p => parseInt(p, 10));
+                    if (month > 0 && month <= 12 && day > 0 && day <= 31) {
+                         // Correct for 2-digit year
+                        const fullYear = year < 100 ? 2000 + year : year;
+                        date = new Date(fullYear, month - 1, day);
+                    }
+                }
+                
+                if (!date || isNaN(date.getTime())) {
+                    date = new Date(dateString);
+                }
+
+                return !isNaN(date.getTime()) ? date : null;
+            };
+
+            const showToast = (message, isError = false) => {
                 const toast = document.getElementById('toast');
                 toast.textContent = message;
                 toast.classList.toggle('bg-red-500', isError);
@@ -819,10 +841,7 @@
                             let creditKey = Object.keys(row).find(k => k.toLowerCase() === 'credit');
                             let amountKey = Object.keys(row).find(k => k.toLowerCase().includes('amount'));
 
-                            if (!dateKey || !descriptionKey) {
-                                console.error('CSV must have columns for Date and Description.', row);
-                                return null;
-                            }
+                            if (!dateKey || !descriptionKey) return null;
                             
                             let amount = 0;
                             if (debitKey || creditKey) {
@@ -837,11 +856,12 @@
                                 const rawAmount = row[amountKey] || "0";
                                 amount = parseFloat(rawAmount.replace(/[^0-9.-]+/g, ""));
                             } else {
-                                console.error('CSV must have an "Amount" column or "Debit"/"Credit" columns.', row);
                                 return null;
                             }
                             
-                            const date = new Date(row[dateKey]).toISOString().split('T')[0];
+                            const parsedDate = parseDate(row[dateKey]);
+                            if(!parsedDate) return null;
+                            const date = parsedDate.toISOString().split('T')[0];
                             const description = row[descriptionKey] || 'No Description';
                             const key = `${date}-${description}-${amount}`;
                             if(existingTxKeys.has(key)) return null;
@@ -911,15 +931,18 @@
                         const importedInvoices = results.data.map((row, index) => {
                             const amountString = row['Grand Total'] || '$0.00';
                             const amount = parseFloat(amountString.replace(/[^0-9.-]+/g, ""));
-                            const transDate = row['TransDate'];
-                            if(!transDate) return null;
+                            const transDateStr = row['TransDate'];
+                            if(!transDateStr) return null;
+                            
+                            const parsedDate = parseDate(transDateStr);
+                            if(!parsedDate) return null;
 
                             return {
                                 id: `ar-${Date.now()}-${index}`,
                                 type: 'ar',
                                 party: row['Customer'] || 'N/A',
                                 number: row['INVNum'] || 'N/A',
-                                date: new Date(transDate).toISOString().split('T')[0],
+                                date: parsedDate.toISOString().split('T')[0],
                                 amount: isNaN(amount) ? 0 : amount,
                                 status: (row['Invoice Status'] || '').toLowerCase() === 'paid' ? 'paid' : 'unpaid'
                             };
@@ -1533,6 +1556,7 @@
             reportTabPl.addEventListener('click', () => switchReportView('pl'));
             reportTabArAging.addEventListener('click', () => switchReportView('ar-aging'));
             reportTabApAging.addEventListener('click', () => switchReportView('ap-aging'));
+
 
             const populateRulesList = () => {
                 rulesListContainer.innerHTML = '';
