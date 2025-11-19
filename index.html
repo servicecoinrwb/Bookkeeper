@@ -200,6 +200,7 @@
                                     <button id="tab-ar" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/R (Invoices)</button>
                                     <button id="tab-ap" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/P (Bills)</button>
                                     <button id="tab-reports" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Reports</button>
+                                    <button id="tab-taxes" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Taxes</button>
                                     <button id="tab-guide" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Bookkeeping Guide</button>
                                 </nav>
                             </div>
@@ -352,6 +353,102 @@
                             <div id="report-pl-content" class="prose max-w-none prose-indigo"></div>
                             <div id="report-ar-aging-content" class="hidden prose max-w-none prose-indigo"></div>
                             <div id="report-ap-aging-content" class="hidden prose max-w-none prose-indigo"></div>
+                        </div>
+
+                         <!-- Taxes View -->
+                        <div id="view-taxes" class="hidden">
+                            <!-- Settings & Summary -->
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg">
+                                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Tax Settings</h3>
+                                    <div class="flex items-center justify-between">
+                                        <label for="tax-rate-input" class="text-sm font-medium text-gray-700">Estimated Tax Rate (%)</label>
+                                        <input type="number" id="tax-rate-input" value="30" class="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-right" min="0" max="100">
+                                    </div>
+                                    <p class="text-xs text-gray-500 mt-2">Typical rate is 25-30% (Self-Employment + Income Tax).</p>
+                                </div>
+                                <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-lg">
+                                    <h3 class="text-lg font-semibold text-indigo-900 mb-2">Current Liability</h3>
+                                    <div class="flex justify-between text-sm mb-1">
+                                        <span class="text-indigo-700">Net Profit (Selected Year):</span>
+                                        <span id="tax-net-profit" class="font-bold">$0.00</span>
+                                    </div>
+                                    <div class="flex justify-between text-lg font-bold border-t border-indigo-200 pt-2 mt-2">
+                                        <span class="text-indigo-900">Est. Taxes Due:</span>
+                                        <span id="tax-total-due" class="text-indigo-600">$0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Quarterly Payments Table -->
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Quarterly Payment Estimates</h3>
+                            <div id="tax-year-warning" class="hidden bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4" role="alert">
+                                <p>Please select a specific <strong>Year</strong> from the filters above to see accurate quarterly estimates.</p>
+                            </div>
+                            <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg mb-6">
+                                <table class="min-w-full divide-y divide-gray-300">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Quarter</th>
+                                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Due Date</th>
+                                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Period Covered</th>
+                                            <th scope="col" class="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Est. Payment</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200 bg-white">
+                                        <tr>
+                                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">Q1</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">April 15</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">Jan 1 – Mar 31</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-right font-medium" id="tax-q1">$0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">Q2</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">June 15</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">Apr 1 – May 31</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-right font-medium" id="tax-q2">$0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">Q3</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">Sept 15</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">Jun 1 – Aug 31</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-right font-medium" id="tax-q3">$0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">Q4</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">Jan 15 (Next Year)</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">Sep 1 – Dec 31</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-right font-medium" id="tax-q4">$0.00</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Tax Concepts Guide -->
+                            <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-3">Tax Concepts: Paying Yourself vs. Business Expenses</h3>
+                                <div class="space-y-4 text-sm text-gray-600">
+                                    <p>
+                                        <strong>The "Profit" Bucket:</strong>
+                                        The IRS taxes you on your business <em>Profit</em> (Total Income minus Business Expenses). This happens regardless of where the money sits (in your business account, personal account, or under your mattress).
+                                    </p>
+                                    <div class="bg-blue-50 p-3 rounded-md border-l-4 border-blue-400">
+                                        <p class="font-medium text-blue-900">Scenario: "Writing a Check to Myself"</p>
+                                        <p class="mt-1">
+                                            When you transfer money from your business checking to your personal savings (or any personal account), this is called an <strong>Owner's Draw</strong>.
+                                        </p>
+                                        <ul class="list-disc list-inside mt-2 ml-2 space-y-1">
+                                            <li>It is <strong>NOT</strong> a tax-deductible business expense.</li>
+                                            <li>It does <strong>NOT</strong> lower your taxable profit.</li>
+                                            <li>It is simply you taking your "paycheck" after taxes are calculated on the profit.</li>
+                                        </ul>
+                                    </div>
+                                    <p>
+                                        <strong>How to Pay Taxes:</strong>
+                                        Since taxes aren't withheld from your Owner's Draw like a regular paycheck, you must make estimated quarterly payments to the IRS based on the schedule above.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
 
@@ -562,7 +659,7 @@
         let categories = [
             'Uncategorized', 'Income', 'Office Supplies', 'Rent', 
             'Utilities', 'Travel', 'Meals', 'Software', 'Marketing',
-            'Parts & Materials', 'Inventory Purchase'
+            'Parts & Materials', 'Inventory Purchase', 'Owner\'s Draw'
         ];
         let categorizationRules = [];
         // New Search Terms
@@ -606,6 +703,7 @@
             ar: document.getElementById('tab-ar'),
             ap: document.getElementById('tab-ap'),
             reports: document.getElementById('tab-reports'),
+            taxes: document.getElementById('tab-taxes'),
             guide: document.getElementById('tab-guide'),
         };
         const views = {
@@ -614,6 +712,7 @@
             ar: document.getElementById('view-ar'),
             ap: document.getElementById('view-ap'),
             reports: document.getElementById('view-reports'),
+            taxes: document.getElementById('view-taxes'),
             guide: document.getElementById('view-guide'),
         };
 
@@ -630,6 +729,16 @@
         const reportPlContent = document.getElementById('report-pl-content');
         const reportArAgingContent = document.getElementById('report-ar-aging-content');
         const reportApAgingContent = document.getElementById('report-ap-aging-content');
+
+        // Tax Elements
+        const taxRateInput = document.getElementById('tax-rate-input');
+        const taxNetProfitEl = document.getElementById('tax-net-profit');
+        const taxTotalDueEl = document.getElementById('tax-total-due');
+        const taxQ1El = document.getElementById('tax-q1');
+        const taxQ2El = document.getElementById('tax-q2');
+        const taxQ3El = document.getElementById('tax-q3');
+        const taxQ4El = document.getElementById('tax-q4');
+        const taxYearWarning = document.getElementById('tax-year-warning');
 
         // Modal elements
         const editModal = document.getElementById('edit-modal');
@@ -987,6 +1096,7 @@
             renderAR(arItems);
             renderAP(apItems);
             renderReports(transactions, arItems, apItems);
+            renderTaxView(transactions);
         };
 
         const renderTransactions = (data) => {
@@ -1404,6 +1514,45 @@
             renderAgingReport('ap', apItems);
         }
         
+        const renderTaxView = (transactions) => {
+            if (!transactions) return;
+            
+            // Filter transactions: Must NOT include Owner's Draw in Expenses
+            // Logic: Income is all positive. Expense is all negative MINUS 'Owner's Draw'
+            let totalIncome = 0;
+            let totalExpense = 0;
+            
+            transactions.forEach(tx => {
+                if (tx.amount >= 0) {
+                    totalIncome += tx.amount;
+                } else {
+                    // CRITICAL: Do not count Owner's Draw as an expense for Tax Calculation
+                    if (tx.category !== "Owner's Draw") {
+                         totalExpense += tx.amount;
+                    }
+                }
+            });
+            
+            const netProfit = totalIncome + totalExpense; // Expense is negative
+            const taxRate = parseFloat(taxRateInput.value) / 100;
+            const estimatedTax = Math.max(0, netProfit * taxRate);
+            const quarterlyPayment = estimatedTax / 4;
+            
+            // Update DOM
+            taxNetProfitEl.textContent = formatCurrency(netProfit);
+            taxTotalDueEl.textContent = formatCurrency(estimatedTax);
+            
+            // Warn if 'All Years' is selected
+            if (yearFilter.value === 'all') {
+                taxYearWarning.classList.remove('hidden');
+                [taxQ1El, taxQ2El, taxQ3El, taxQ4El].forEach(el => el.textContent = "---");
+            } else {
+                taxYearWarning.classList.add('hidden');
+                [taxQ1El, taxQ2El, taxQ3El, taxQ4El].forEach(el => el.textContent = formatCurrency(quarterlyPayment));
+            }
+        };
+
+        
         const renderPLReport = (data) => {
             const incomeByCategory = {};
             const expensesByCategory = {};
@@ -1788,6 +1937,10 @@
                 removeRule(parseInt(e.target.dataset.index));
             }
         });
+        
+        if(taxRateInput){
+             taxRateInput.addEventListener('input', () => renderAllData());
+        }
 
         // Search Event Listeners
         if(arSearchInput) {
