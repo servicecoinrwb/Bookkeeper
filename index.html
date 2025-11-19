@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bookkeeper Pro</title>
+    <!-- Favicon to fix 404 error -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
@@ -88,38 +90,47 @@
                         <p class="text-gray-500 mt-1">Cloud-enabled Accounting Tool</p>
                     </div>
                     
+                    <!-- Auth Section -->
                     <div class="flex items-center gap-3">
+                        <!-- Loading Spinner for Auth -->
                         <div id="auth-loading" class="hidden">
                             <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-6 w-6"></div>
                         </div>
 
+                        <!-- Guest View -->
                         <button id="login-btn" class="hidden flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors text-sm font-semibold">
                             <svg class="w-4 h-4" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
                             Sign In with Google
                         </button>
 
+                        <!-- Logged In View -->
                         <div id="user-info" class="hidden flex items-center gap-3 bg-white border border-gray-200 px-3 py-1.5 rounded-full shadow-sm">
                             <img id="user-avatar" src="" alt="User" class="w-6 h-6 rounded-full">
                             <span id="user-name" class="text-sm font-medium text-gray-700 truncate max-w-[150px]"></span>
                             <button id="logout-btn" class="text-xs text-red-600 hover:text-red-800 font-semibold ml-2">Sign Out</button>
                         </div>
 
+                        <!-- External Links -->
                         <div class="hidden md:flex items-center gap-3 border-l pl-4 border-gray-300">
+                            <!-- Service App Link -->
                             <a href="https://www.appsheet.com/start/90811d78-1165-4542-bbaa-af393ca455a5?platform=desktop#appName=SVC-QApp-721685306&vss=H4sIAAAAAAAAA52OvQ7CMBCD38VzniArYgAEC4iFdEibqxTRJlWTAlWUd-fCj1iB8Xz-bCdcLF33UTdnyFP6XBuaIZEUDvNAClJh4V0cfacgFHa6f4prXweFjFyJNxspQKbvUfl_q4A15KJtLY0lp1DMvxh-F4KF4kcW6Keo644eI9mfM2utb6ZA5sgTfqwOK7e8DdqZrTcc1-ouUL4DXt8N6VEBAAA=&view=Jobs" target="_blank" class="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100 transition-colors">
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                                 Service App
                             </a>
                             
+                            <!-- Bank Link -->
                             <a href="https://www.communitychoicecu.com/" target="_blank" class="flex items-center gap-1 text-emerald-700 hover:text-emerald-900 text-xs font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-100 transition-colors">
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"></path></svg>
                                 Bank
                             </a>
 
+                            <!-- Intuit Link -->
                             <a href="https://accounts.intuit.com/app/account-manager/overview" target="_blank" class="text-gray-500 hover:text-indigo-600 text-xs">Intuit</a>
                         </div>
                     </div>
                 </div>
             </header>
+
             <!-- Main Content -->
             <main>
                 <!-- Status Bar for Cloud Sync -->
@@ -275,7 +286,7 @@
                                     Import Invoice CSV
                                 </label>
                                 <input type="file" id="invoice-csv-file" class="hidden" accept=".csv">
-                                
+                                <!-- Search AR -->
                                 <div class="relative ml-auto w-full md:w-64">
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
@@ -304,7 +315,7 @@
                         <div id="view-ap" class="hidden">
                             <div class="flex flex-wrap items-center gap-4 mb-4">
                                 <button id="add-bill-button" class="bg-orange-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">Add New Bill</button>
-                                
+                                <!-- Search AP -->
                                 <div class="relative ml-auto w-full md:w-64">
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
@@ -554,6 +565,7 @@
             'Parts & Materials', 'Inventory Purchase'
         ];
         let categorizationRules = [];
+        // New Search Terms
         let arSearchTerm = '';
         let apSearchTerm = '';
 
@@ -663,6 +675,7 @@
         const apArCancelButton = document.getElementById('ap-ar-cancel-button');
         const addInvoiceButton = document.getElementById('add-invoice-button');
         const addBillButton = document.getElementById('add-bill-button');
+        // New Search Inputs
         const arSearchInput = document.getElementById('ar-search');
         const apSearchInput = document.getElementById('ap-search');
         
@@ -819,7 +832,7 @@
                 
                 if (savedSession) {
                     try {
-                         allData = JSON.parse(savedSession);
+                          allData = JSON.parse(savedSession);
                     } catch(e) { console.error(e); }
                 }
                 if (savedCategories) categories = JSON.parse(savedCategories);
@@ -930,11 +943,12 @@
             populateRulesList();
         };
 
+        // --- REPLACED RENDER FUNCTION FOR DYNAMIC DASHBOARD ---
         const renderAllData = () => {
             const selectedYear = yearFilter.value;
             const selectedMonth = monthFilter.value;
 
-            // Filter by Date first
+            // 1. Filter EVERYTHING by Date first
             let filteredData = allData.filter(item => {
                 if(!item.date) return false;
                 const itemDate = new Date(item.date);
@@ -945,9 +959,10 @@
                 return yearMatch && monthMatch;
             });
             
+            // 2. Separate Transactions
             const transactions = filteredData.filter(d => d.type === 'transaction');
             
-            // Filter AR by search term
+            // 3. Filter AR by search term
             const arItems = filteredData.filter(d => {
                 if (d.type !== 'ar') return false;
                 if (!arSearchTerm) return true;
@@ -955,7 +970,7 @@
                        d.number.toLowerCase().includes(arSearchTerm.toLowerCase());
             });
 
-            // Filter AP by search term
+            // 4. Filter AP by search term
             const apItems = filteredData.filter(d => {
                 if (d.type !== 'ap') return false;
                 if (!apSearchTerm) return true;
@@ -964,7 +979,10 @@
             });
 
             renderTransactions(transactions);
-            updateDashboard(transactions, allData.filter(d=>d.type === 'ar'), allData.filter(d=>d.type === 'ap')); // Dashboard uses ALL data for correct totals
+            
+            // Calculate Dashboard based on FILTERED items
+            updateDashboard(transactions, arItems, apItems); 
+
             renderJobProfitability(transactions);
             renderAR(arItems);
             renderAP(apItems);
@@ -1012,6 +1030,7 @@
 
             const sixtyDaysAgo = new Date();
             sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+            // Check visible/filtered items for past due status
             const hasPastDue = arItems.some(item => item.status === 'unpaid' && new Date(item.date) < sixtyDaysAgo);
 
             totalIncomeEl.textContent = formatCurrency(income);
@@ -1771,19 +1790,19 @@
         });
 
         // Search Event Listeners
-       if(arSearchInput) {
-           arSearchInput.addEventListener('input', (e) => {
-               arSearchTerm = e.target.value;
-               renderAllData();
-           });
-       }
+        if(arSearchInput) {
+            arSearchInput.addEventListener('input', (e) => {
+                arSearchTerm = e.target.value;
+                renderAllData();
+            });
+        }
 
-       if(apSearchInput) {
-           apSearchInput.addEventListener('input', (e) => {
-               apSearchTerm = e.target.value;
-               renderAllData();
-           });
-       }
+        if(apSearchInput) {
+            apSearchInput.addEventListener('input', (e) => {
+                apSearchTerm = e.target.value;
+                renderAllData();
+            });
+        }
 
         // Searchable Category Dropdown Logic
         modalCategorySearch.addEventListener('input', () => {
