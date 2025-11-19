@@ -666,7 +666,7 @@
 
         // --- STATE MANAGEMENT ---
         let allData = []; 
-        // UPDATED: HVAC-Specific Categories
+        // HVAC-Specific Categories
         let categories = [
             'Income (Sales/Service)',
             'COGS - Equipment',
@@ -683,7 +683,7 @@
             'Owner\'s Draw',
             'Uncategorized'
         ];
-        // UPDATED: HVAC-Specific Default Rules
+        // HVAC-Specific Default Rules
         let categorizationRules = [
             { keyword: 'Speedway', category: 'Vehicle Expenses (Fuel, Repairs)' },
             { keyword: 'Shell', category: 'Vehicle Expenses (Fuel, Repairs)' },
@@ -703,7 +703,6 @@
         // Search Terms
         let arSearchTerm = '';
         let apSearchTerm = '';
-        // NEW: AR Status Filter
         let arStatusFilter = 'all';
 
         // --- DOM ELEMENTS ---
@@ -727,8 +726,7 @@
         const netTotalEl = document.getElementById('net-total');
         const totalAREl = document.getElementById('total-ar');
         const totalAPEl = document.getElementById('total-ap');
-        const totalUnreconciledEl = document.getElementById('total-unreconciled');
-        const totalDrawsEl = document.getElementById('total-draws');
+        const totalUnreconciledEl = document.getElementById('total-unreconciled'); // This MUST exist
         const arCard = document.getElementById('ar-card');
         const arPastDueWarning = document.getElementById('ar-past-due-warning');
         const importMoreTransactionsButton = document.getElementById('import-more-transactions-button');
@@ -828,7 +826,6 @@
         // New Search Inputs
         const arSearchInput = document.getElementById('ar-search');
         const apSearchInput = document.getElementById('ap-search');
-        // New AR Filter Input
         const arStatusFilterInput = document.getElementById('ar-status-filter');
         
         // Batch Update Modal
@@ -1114,11 +1111,10 @@
             // 2. Separate Transactions
             const transactions = filteredData.filter(d => d.type === 'transaction');
             
-            // 3. Filter AR by search term and Status Filter
+            // 3. Filter AR by search term and Status
             const arItems = filteredData.filter(d => {
                 if (d.type !== 'ar') return false;
                 
-                // Apply Status Filter
                 if (arStatusFilter !== 'all' && d.status.toLowerCase() !== arStatusFilter) {
                     return false;
                 }
@@ -1148,45 +1144,10 @@
             renderTaxView(transactions);
         };
 
-        const renderTransactions = (data) => {
-            transactionTableBody.innerHTML = '';
-            if (data.length === 0) {
-                 transactionTableBody.innerHTML = `<tr><td colspan="7" class="text-center py-10 text-gray-500">No transactions for the selected period.</td></tr>`;
-                 return;
-            }
-            
-            data.forEach(tx => {
-                const row = document.createElement('tr');
-                const amountClass = tx.amount >= 0 ? 'text-green-600' : 'text-red-600';
-                const categoryClass = tx.category === 'Uncategorized' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800';
-                row.innerHTML = `
-                    <td class="px-2 py-4 whitespace-nowrap text-sm text-center">
-                        <input type="checkbox" data-id="${tx.id}" class="reconcile-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" ${tx.reconciled ? 'checked' : ''}>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(tx.date).toLocaleDateString()}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 max-w-xs truncate" title="${tx.description}">${tx.description}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${amountClass}">${formatCurrency(tx.amount)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${categoryClass}">${tx.category}</span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${tx.job || ''}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button data-id="${tx.id}" class="edit-btn text-indigo-600 hover:text-indigo-900">Edit</button>
-                    </td>
-                `;
-                transactionTableBody.appendChild(row);
-            });
-        };
-
+        // Reverted Update Dashboard Logic (Cash Flow)
         const updateDashboard = (transactions, arItems, apItems) => {
             const income = transactions.filter(tx => tx.amount >= 0).reduce((sum, tx) => sum + tx.amount, 0);
-            
-            // FIXED: Exclude "Owner's Draw" from Business Expenses
-            const expense = transactions.filter(tx => tx.amount < 0 && tx.category !== "Owner's Draw").reduce((sum, tx) => sum + tx.amount, 0);
-            
-            // FIXED: Calculate Owner's Draw Separately
-            const draws = transactions.filter(tx => tx.amount < 0 && tx.category === "Owner's Draw").reduce((sum, tx) => sum + tx.amount, 0);
-
+            const expense = transactions.filter(tx => tx.amount < 0).reduce((sum, tx) => sum + tx.amount, 0);
             const net = income + expense; // Expense is negative
 
             const totalAR = arItems.filter(i => i.status === 'unpaid').reduce((sum, i) => sum + i.amount, 0);
@@ -1195,19 +1156,16 @@
 
             const sixtyDaysAgo = new Date();
             sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
-            // Check visible/filtered items for past due status
             const hasPastDue = arItems.some(item => item.status === 'unpaid' && new Date(item.date) < sixtyDaysAgo);
 
             totalIncomeEl.textContent = formatCurrency(income);
             totalExpenseEl.textContent = formatCurrency(Math.abs(expense));
             netTotalEl.textContent = formatCurrency(net);
-            
-            // New Stats
-            totalDrawsEl.textContent = formatCurrency(Math.abs(draws));
-
             totalAREl.textContent = formatCurrency(totalAR);
             totalAPEl.textContent = formatCurrency(totalAP);
-            totalUnreconciledEl.textContent = unreconciledCount;
+            
+            // Fix for CSV: Ensure element exists before setting content
+            if(totalUnreconciledEl) totalUnreconciledEl.textContent = unreconciledCount;
 
             netTotalEl.parentElement.classList.toggle('bg-red-50', net < 0);
             netTotalEl.parentElement.classList.toggle('border-red-500', net < 0);
