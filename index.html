@@ -242,7 +242,12 @@
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
                                         <tr>
-                                            <th scope="col" class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rec</th>
+                                            <th scope="col" class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                                <div class="flex items-center gap-1">
+                                                    <input type="checkbox" id="select-all-rec" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer">
+                                                    <span>Rec</span>
+                                                </div>
+                                            </th>
                                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                                             <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
@@ -288,7 +293,7 @@
                                 </label>
                                 <input type="file" id="invoice-csv-file" class="hidden" accept=".csv">
                                 
-                                <!-- NEW: AR Status Filter -->
+                                <!-- AR Status Filter -->
                                 <div class="w-32">
                                     <select id="ar-status-filter" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                                         <option value="all">All Status</option>
@@ -734,6 +739,8 @@
         const exportButton = document.getElementById('export-button');
         const saveSessionButton = document.getElementById('save-session-button');
         const clearSessionButton = document.getElementById('clear-session-button');
+        // Select All Checkbox
+        const selectAllRecCheckbox = document.getElementById('select-all-rec');
 
         // Tab elements
         const tabs = {
@@ -2009,6 +2016,29 @@
             arStatusFilterInput.addEventListener('change', (e) => {
                 arStatusFilter = e.target.value;
                 renderAllData();
+            });
+        }
+
+        // Select All Rec Checkbox Listener
+        if (selectAllRecCheckbox) {
+            selectAllRecCheckbox.addEventListener('change', (e) => {
+                const isChecked = e.target.checked;
+                // 1. Get all visible transaction checkboxes
+                const visibleCheckboxes = document.querySelectorAll('.reconcile-checkbox');
+                
+                // 2. Update their state visually (instant feedback)
+                visibleCheckboxes.forEach(cb => cb.checked = isChecked);
+                
+                // 3. Update data model
+                visibleCheckboxes.forEach(cb => {
+                    const id = cb.dataset.id;
+                    const item = allData.find(d => d.id === id);
+                    if (item) item.reconciled = isChecked;
+                });
+
+                // 4. Update Dashboard/Save
+                renderAllData(); 
+                saveSession();
             });
         }
 
