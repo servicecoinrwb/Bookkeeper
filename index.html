@@ -1704,6 +1704,45 @@
             `;
             reportPlContent.innerHTML = reportHTML;
         };
+        
+        const renderTaxView = (transactions) => {
+            if (!transactions) return;
+            
+            // Filter transactions: Must NOT include Owner's Draw in Expenses
+            // Logic: Income is all positive. Expense is all negative MINUS 'Owner's Draw'
+            let totalIncome = 0;
+            let totalExpense = 0;
+            
+            transactions.forEach(tx => {
+                if (tx.amount >= 0) {
+                    totalIncome += tx.amount;
+                } else {
+                    // CRITICAL: Do not count Owner's Draw as an expense for Tax Calculation
+                    if (tx.category !== "Owner's Draw") {
+                         totalExpense += tx.amount;
+                    }
+                }
+            });
+            
+            const netProfit = totalIncome + totalExpense; // Expense is negative
+            const taxRate = parseFloat(taxRateInput.value) / 100;
+            const estimatedTax = Math.max(0, netProfit * taxRate);
+            const quarterlyPayment = estimatedTax / 4;
+            
+            // Update DOM
+            taxNetProfitEl.textContent = formatCurrency(netProfit);
+            taxTotalDueEl.textContent = formatCurrency(estimatedTax);
+            
+            // Warn if 'All Years' is selected
+            if (yearFilter.value === 'all') {
+                taxYearWarning.classList.remove('hidden');
+                [taxQ1El, taxQ2El, taxQ3El, taxQ4El].forEach(el => el.textContent = "---");
+            } else {
+                taxYearWarning.classList.add('hidden');
+                [taxQ1El, taxQ2El, taxQ3El, taxQ4El].forEach(el => el.textContent = formatCurrency(quarterlyPayment));
+            }
+        };
+
 
         const renderAgingReport = (type, data) => {
             const today = new Date();
