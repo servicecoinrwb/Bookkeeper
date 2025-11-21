@@ -174,11 +174,11 @@
                             <div id="total-income" class="text-2xl font-bold">$0.00</div>
                         </div>
                         <div class="bg-red-50 border-l-4 border-red-500 text-red-800 p-4 rounded-lg shadow-sm">
-                            <div class="text-sm font-medium">BUSINESS EXPENSE</div>
+                            <div class="text-sm font-medium">TOTAL EXPENSE</div>
                             <div id="total-expense" class="text-2xl font-bold">$0.00</div>
                         </div>
                         <div class="bg-blue-50 border-l-4 border-blue-500 text-blue-800 p-4 rounded-lg shadow-sm">
-                            <div class="text-sm font-medium">NET (CASH)</div>
+                            <div class="text-sm font-medium">NET</div>
                             <div id="net-total" class="text-2xl font-bold">$0.00</div>
                         </div>
                          <div id="ar-card" class="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-lg shadow-sm">
@@ -299,7 +299,7 @@
                                 </label>
                                 <input type="file" id="invoice-csv-file" class="hidden" accept=".csv">
                                 
-                                <!-- NEW: AR Status Filter -->
+                                <!-- AR Status Filter -->
                                 <div class="w-32">
                                     <select id="ar-status-filter" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                                         <option value="all">All Status</option>
@@ -1195,12 +1195,13 @@
             });
         };
 
-        // Update Dashboard Logic (Cash Flow + Transfer Handling)
+        // Reverted Update Dashboard Logic (Cash Flow)
         const updateDashboard = (transactions, arItems, apItems) => {
              // Income: Positive amounts, excluding "Transfer" category (so savings transfer isn't revenue)
             const income = transactions.filter(tx => tx.amount >= 0 && tx.category !== "Transfer").reduce((sum, tx) => sum + tx.amount, 0);
             
-            // Expense: Negative amounts, excluding "Owner's Draw" and "Transfer" (so savings transfer isn't expense)
+            // Expense: Negative amounts
+            // Logic: We EXCLUDE "Owner's Draw" (Equity) and "Transfer" (Movement). 
             const expense = transactions.filter(tx => tx.amount < 0 && tx.category !== "Owner's Draw" && tx.category !== "Transfer").reduce((sum, tx) => sum + tx.amount, 0);
             
             // Net (Cash Flow): Sum of EVERYTHING visible (Income + Expense + Draws + Transfers)
@@ -1221,6 +1222,7 @@
             totalAREl.textContent = formatCurrency(totalAR);
             totalAPEl.textContent = formatCurrency(totalAP);
             
+            // Fix for CSV: Ensure element exists before setting content
             if(totalUnreconciledEl) totalUnreconciledEl.textContent = unreconciledCount;
 
             netTotalEl.parentElement.classList.toggle('bg-red-50', net < 0);
@@ -1717,7 +1719,7 @@
         const renderTaxView = (transactions) => {
             if (!transactions) return;
             
-            // Filter transactions: Must NOT include Owner's Draw or Transfer in Expenses
+            // Filter transactions for Taxable Profit
             let totalIncome = 0;
             let totalExpense = 0;
             
@@ -1728,7 +1730,8 @@
                         totalIncome += tx.amount;
                     }
                 } else {
-                    // CRITICAL: Do not count Owner's Draw OR Transfer as an expense for Tax Calculation
+                    // Expense Calculation for S-Corp:
+                    // Officer Salary IS an expense. Owner's Draw is NOT.
                     if (tx.category !== "Owner's Draw" && tx.category !== "Transfer") {
                          totalExpense += tx.amount;
                     }
