@@ -365,13 +365,15 @@
                         <!-- Reports View -->
                         <div id="view-reports" class="hidden">
                              <div class="mb-4 border-b border-gray-200">
-                                <nav class="-mb-px flex space-x-8" aria-label="Report Tabs">
+                                <nav class="-mb-px flex space-x-8 overflow-x-auto" aria-label="Report Tabs">
                                     <button id="report-tab-pl" class="border-indigo-500 text-indigo-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Profit & Loss</button>
+                                    <button id="report-tab-vendors" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Vendor Expenses</button>
                                     <button id="report-tab-ar-aging" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/R Aging</button>
                                     <button id="report-tab-ap-aging" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/P Aging</button>
                                 </nav>
                             </div>
                             <div id="report-pl-content" class="prose max-w-none prose-indigo"></div>
+                            <div id="report-vendors-content" class="hidden prose max-w-none prose-indigo"></div>
                             <div id="report-ar-aging-content" class="hidden prose max-w-none prose-indigo"></div>
                             <div id="report-ap-aging-content" class="hidden prose max-w-none prose-indigo"></div>
                         </div>
@@ -776,9 +778,11 @@
         
         // Report Elements
         const reportTabPl = document.getElementById('report-tab-pl');
+        const reportTabVendors = document.getElementById('report-tab-vendors'); // NEW
         const reportTabArAging = document.getElementById('report-tab-ar-aging');
         const reportTabApAging = document.getElementById('report-tab-ap-aging');
         const reportPlContent = document.getElementById('report-pl-content');
+        const reportVendorsContent = document.getElementById('report-vendors-content'); // NEW
         const reportArAgingContent = document.getElementById('report-ar-aging-content');
         const reportApAgingContent = document.getElementById('report-ap-aging-content');
 
@@ -1573,49 +1577,73 @@
         
          const renderReports = (transactions, arItems, apItems) => {
             renderPLReport(transactions);
+            renderVendorReport(transactions); // NEW
             renderAgingReport('ar', arItems);
             renderAgingReport('ap', apItems);
         }
         
-        const renderTaxView = (transactions) => {
-            if (!transactions) return;
-            
-            // Filter transactions: Must NOT include Owner's Draw in Expenses
-            // Logic: Income is all positive. Expense is all negative MINUS 'Owner's Draw'
-            let totalIncome = 0;
-            let totalExpense = 0;
-            
-            transactions.forEach(tx => {
-                if (tx.amount >= 0) {
-                    totalIncome += tx.amount;
-                } else {
-                    // CRITICAL: Do not count Owner's Draw as an expense for Tax Calculation
-                    if (tx.category !== "Owner's Draw") {
-                         totalExpense += tx.amount;
-                    }
+        // NEW: Vendor Report Logic
+        const renderVendorReport = (data) => {
+            const vendorTotals = {};
+            let totalExpenses = 0;
+
+            data.forEach(tx => {
+                // Only look at expenses, exclude Owner's Draw
+                if (tx.amount < 0 && tx.category !== "Owner's Draw") {
+                    // Clean up description to group similar vendors (e.g., remove numbers)
+                    // "Home Depot 0552" -> "Home Depot"
+                    let vendorName = tx.description.replace(/[0-9#*-]/g, '').trim();
+                    
+                    // Fallback if cleanup makes it empty
+                    if(!vendorName) vendorName = tx.description;
+                    
+                    // Shorten very long names
+                    if(vendorName.length > 25) vendorName = vendorName.substring(0, 25) + '...';
+
+                    if (!vendorTotals[vendorName]) vendorTotals[vendorName] = 0;
+                    vendorTotals[vendorName] += Math.abs(tx.amount);
+                    totalExpenses += Math.abs(tx.amount);
                 }
             });
-            
-            const netProfit = totalIncome + totalExpense; // Expense is negative
-            const taxRate = parseFloat(taxRateInput.value) / 100;
-            const estimatedTax = Math.max(0, netProfit * taxRate);
-            const quarterlyPayment = estimatedTax / 4;
-            
-            // Update DOM
-            taxNetProfitEl.textContent = formatCurrency(netProfit);
-            taxTotalDueEl.textContent = formatCurrency(estimatedTax);
-            
-            // Warn if 'All Years' is selected
-            if (yearFilter.value === 'all') {
-                taxYearWarning.classList.remove('hidden');
-                [taxQ1El, taxQ2El, taxQ3El, taxQ4El].forEach(el => el.textContent = "---");
-            } else {
-                taxYearWarning.classList.add('hidden');
-                [taxQ1El, taxQ2El, taxQ3El, taxQ4El].forEach(el => el.textContent = formatCurrency(quarterlyPayment));
-            }
+
+            // Convert to array and sort by highest spending
+            const sortedVendors = Object.keys(vendorTotals).map(key => {
+                return { name: key, amount: vendorTotals[key] };
+            }).sort((a, b) => b.amount - a.amount);
+
+            let reportHTML = `
+                <div class="space-y-6">
+                    <h4 class="font-semibold text-lg mb-2">Top Vendors (Where your money goes)</h4>
+                    <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-300">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Vendor / Payee</th>
+                                    <th scope="col" class="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Total Spent</th>
+                                    <th scope="col" class="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">% of Total</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200 bg-white">
+                                ${sortedVendors.map(v => `
+                                    <tr>
+                                        <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">${v.name}</td>
+                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 text-right">${formatCurrency(v.amount)}</td>
+                                        <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 text-right">${((v.amount / totalExpenses) * 100).toFixed(1)}%</td>
+                                    </tr>
+                                `).join('')}
+                                <tr class="bg-gray-50 font-bold">
+                                    <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm text-gray-900">TOTAL</td>
+                                    <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-900 text-right">${formatCurrency(totalExpenses)}</td>
+                                    <td></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+            reportVendorsContent.innerHTML = reportHTML;
         };
 
-        
         const renderPLReport = (data) => {
             const incomeByCategory = {};
             const expensesByCategory = {};
@@ -1970,8 +1998,8 @@
         cancelDeleteButton.addEventListener('click', closeConfirmModal);
 
          const switchReportView = (activeReport) => {
-            [reportPlContent, reportArAgingContent, reportApAgingContent].forEach(el => el.classList.add('hidden'));
-            [reportTabPl, reportTabArAging, reportTabApAging].forEach(el => {
+            [reportPlContent, reportVendorsContent, reportArAgingContent, reportApAgingContent].forEach(el => el.classList.add('hidden'));
+            [reportTabPl, reportTabVendors, reportTabArAging, reportTabApAging].forEach(el => {
                 el.classList.remove('border-indigo-500', 'text-indigo-600');
                 el.classList.add('border-transparent', 'text-gray-500');
             });
@@ -1979,6 +2007,9 @@
             if (activeReport === 'pl') {
                 reportPlContent.classList.remove('hidden');
                 reportTabPl.classList.add('border-indigo-500', 'text-indigo-600');
+            } else if (activeReport === 'vendors') {
+                reportVendorsContent.classList.remove('hidden');
+                reportTabVendors.classList.add('border-indigo-500', 'text-indigo-600');
             } else if (activeReport === 'ar-aging') {
                 reportArAgingContent.classList.remove('hidden');
                 reportTabArAging.classList.add('border-indigo-500', 'text-indigo-600');
@@ -1988,6 +2019,7 @@
             }
         };
         reportTabPl.addEventListener('click', () => switchReportView('pl'));
+        reportTabVendors.addEventListener('click', () => switchReportView('vendors')); // NEW Listener
         reportTabArAging.addEventListener('click', () => switchReportView('ar-aging'));
         reportTabApAging.addEventListener('click', () => switchReportView('ap-aging'));
 
