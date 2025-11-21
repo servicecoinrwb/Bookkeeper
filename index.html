@@ -174,11 +174,11 @@
                             <div id="total-income" class="text-2xl font-bold">$0.00</div>
                         </div>
                         <div class="bg-red-50 border-l-4 border-red-500 text-red-800 p-4 rounded-lg shadow-sm">
-                            <div class="text-sm font-medium">TOTAL EXPENSE</div>
+                            <div class="text-sm font-medium">BUSINESS EXPENSE</div>
                             <div id="total-expense" class="text-2xl font-bold">$0.00</div>
                         </div>
                         <div class="bg-blue-50 border-l-4 border-blue-500 text-blue-800 p-4 rounded-lg shadow-sm">
-                            <div class="text-sm font-medium">NET</div>
+                            <div class="text-sm font-medium">NET (CASH)</div>
                             <div id="net-total" class="text-2xl font-bold">$0.00</div>
                         </div>
                          <div id="ar-card" class="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-lg shadow-sm">
@@ -299,7 +299,7 @@
                                 </label>
                                 <input type="file" id="invoice-csv-file" class="hidden" accept=".csv">
                                 
-                                <!-- AR Status Filter -->
+                                <!-- NEW: AR Status Filter -->
                                 <div class="w-32">
                                     <select id="ar-status-filter" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                                         <option value="all">All Status</option>
@@ -694,6 +694,7 @@
             'Rent/Lease',
             'Utilities',
             'Owner\'s Draw',
+            'Transfer', // NEW Category
             'Uncategorized'
         ];
         // HVAC-Specific Default Rules
@@ -778,11 +779,11 @@
         
         // Report Elements
         const reportTabPl = document.getElementById('report-tab-pl');
-        const reportTabVendors = document.getElementById('report-tab-vendors'); // NEW
+        const reportTabVendors = document.getElementById('report-tab-vendors');
         const reportTabArAging = document.getElementById('report-tab-ar-aging');
         const reportTabApAging = document.getElementById('report-tab-ap-aging');
         const reportPlContent = document.getElementById('report-pl-content');
-        const reportVendorsContent = document.getElementById('report-vendors-content'); // NEW
+        const reportVendorsContent = document.getElementById('report-vendors-content');
         const reportArAgingContent = document.getElementById('report-ar-aging-content');
         const reportApAgingContent = document.getElementById('report-ap-aging-content');
 
@@ -1125,7 +1126,7 @@
                 return yearMatch && monthMatch;
             });
             
-            // NEW: Sort by Date Descending (Newest First) to fix mismatched dates
+            // Sort by Date Descending (Newest First)
             filteredData.sort((a, b) => new Date(b.date) - new Date(a.date));
             
             // 2. Separate Transactions
@@ -1194,11 +1195,17 @@
             });
         };
 
-        // Reverted Update Dashboard Logic (Cash Flow)
+        // Update Dashboard Logic (Cash Flow + Transfer Handling)
         const updateDashboard = (transactions, arItems, apItems) => {
-            const income = transactions.filter(tx => tx.amount >= 0).reduce((sum, tx) => sum + tx.amount, 0);
-            const expense = transactions.filter(tx => tx.amount < 0).reduce((sum, tx) => sum + tx.amount, 0);
-            const net = income + expense; // Expense is negative
+             // Income: Positive amounts, excluding "Transfer" category (so savings transfer isn't revenue)
+            const income = transactions.filter(tx => tx.amount >= 0 && tx.category !== "Transfer").reduce((sum, tx) => sum + tx.amount, 0);
+            
+            // Expense: Negative amounts, excluding "Owner's Draw" and "Transfer" (so savings transfer isn't expense)
+            const expense = transactions.filter(tx => tx.amount < 0 && tx.category !== "Owner's Draw" && tx.category !== "Transfer").reduce((sum, tx) => sum + tx.amount, 0);
+            
+            // Net (Cash Flow): Sum of EVERYTHING visible (Income + Expense + Draws + Transfers)
+            // This ensures the "Net" matches the Bank Balance exactly.
+            const net = transactions.reduce((sum, tx) => sum + tx.amount, 0);
 
             const totalAR = arItems.filter(i => i.status === 'unpaid').reduce((sum, i) => sum + i.amount, 0);
             const totalAP = apItems.filter(i => i.status === 'unpaid').reduce((sum, i) => sum + i.amount, 0);
@@ -1214,7 +1221,6 @@
             totalAREl.textContent = formatCurrency(totalAR);
             totalAPEl.textContent = formatCurrency(totalAP);
             
-            // Fix for CSV: Ensure element exists before setting content
             if(totalUnreconciledEl) totalUnreconciledEl.textContent = unreconciledCount;
 
             netTotalEl.parentElement.classList.toggle('bg-red-50', net < 0);
@@ -1588,8 +1594,8 @@
             let totalExpenses = 0;
 
             data.forEach(tx => {
-                // Only look at expenses, exclude Owner's Draw
-                if (tx.amount < 0 && tx.category !== "Owner's Draw") {
+                // Only look at expenses, exclude Owner's Draw AND Transfer
+                if (tx.amount < 0 && tx.category !== "Owner's Draw" && tx.category !== "Transfer") {
                     // Clean up description to group similar vendors (e.g., remove numbers)
                     // "Home Depot 0552" -> "Home Depot"
                     let vendorName = tx.description.replace(/[0-9#*-]/g, '').trim();
@@ -1651,6 +1657,9 @@
             let totalExpense = 0;
 
             data.forEach(tx => {
+                // EXCLUDE TRANSFERS
+                if(tx.category === "Transfer") return;
+
                 if (tx.amount >= 0) {
                     if (!incomeByCategory[tx.category]) incomeByCategory[tx.category] = 0;
                     incomeByCategory[tx.category] += tx.amount;
@@ -1708,17 +1717,19 @@
         const renderTaxView = (transactions) => {
             if (!transactions) return;
             
-            // Filter transactions: Must NOT include Owner's Draw in Expenses
-            // Logic: Income is all positive. Expense is all negative MINUS 'Owner's Draw'
+            // Filter transactions: Must NOT include Owner's Draw or Transfer in Expenses
             let totalIncome = 0;
             let totalExpense = 0;
             
             transactions.forEach(tx => {
                 if (tx.amount >= 0) {
-                    totalIncome += tx.amount;
+                    // Exclude incoming Transfers
+                    if (tx.category !== "Transfer") {
+                        totalIncome += tx.amount;
+                    }
                 } else {
-                    // CRITICAL: Do not count Owner's Draw as an expense for Tax Calculation
-                    if (tx.category !== "Owner's Draw") {
+                    // CRITICAL: Do not count Owner's Draw OR Transfer as an expense for Tax Calculation
+                    if (tx.category !== "Owner's Draw" && tx.category !== "Transfer") {
                          totalExpense += tx.amount;
                     }
                 }
