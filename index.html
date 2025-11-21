@@ -1115,6 +1115,9 @@
                 return yearMatch && monthMatch;
             });
             
+            // NEW: Sort by Date Descending (Newest First) to fix mismatched dates
+            filteredData.sort((a, b) => new Date(b.date) - new Date(a.date));
+            
             // 2. Separate Transactions
             const transactions = filteredData.filter(d => d.type === 'transaction');
             
