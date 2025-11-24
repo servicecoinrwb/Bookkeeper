@@ -685,6 +685,7 @@
             'COGS - Equipment',
             'COGS - Parts & Materials',
             'Subcontractors',
+            'Payroll Expenses (Wages & Taxes)', // NEW: For your employees
             'Vehicle Expenses (Fuel, Repairs)',
             'Tools & Small Equipment',
             'Permits & Licenses',
@@ -694,7 +695,7 @@
             'Rent/Lease',
             'Utilities',
             'Owner\'s Draw',
-            'Transfer', // NEW Category
+            'Transfer', 
             'Uncategorized'
         ];
         // HVAC-Specific Default Rules
@@ -711,7 +712,9 @@
             { keyword: 'Google', category: 'Marketing & Advertising' },
             { keyword: 'Facebook', category: 'Marketing & Advertising' },
             { keyword: 'State Farm', category: 'Insurance' },
-            { keyword: 'Geico', category: 'Insurance' }
+            { keyword: 'Geico', category: 'Insurance' },
+            { keyword: 'Gusto', category: 'Payroll Expenses (Wages & Taxes)' },
+            { keyword: 'ADP', category: 'Payroll Expenses (Wages & Taxes)' }
         ];
         
         // Search Terms
@@ -1126,7 +1129,7 @@
                 return yearMatch && monthMatch;
             });
             
-            // Sort by Date Descending (Newest First)
+            // NEW: Sort by Date Descending (Newest First) to fix mismatched dates
             filteredData.sort((a, b) => new Date(b.date) - new Date(a.date));
             
             // 2. Separate Transactions
@@ -1195,7 +1198,7 @@
             });
         };
 
-        // Reverted Update Dashboard Logic (Cash Flow)
+        // Update Dashboard Logic (Cash Flow + Transfer Handling)
         const updateDashboard = (transactions, arItems, apItems) => {
              // Income: Positive amounts, excluding "Transfer" category (so savings transfer isn't revenue)
             const income = transactions.filter(tx => tx.amount >= 0 && tx.category !== "Transfer").reduce((sum, tx) => sum + tx.amount, 0);
@@ -1222,7 +1225,6 @@
             totalAREl.textContent = formatCurrency(totalAR);
             totalAPEl.textContent = formatCurrency(totalAP);
             
-            // Fix for CSV: Ensure element exists before setting content
             if(totalUnreconciledEl) totalUnreconciledEl.textContent = unreconciledCount;
 
             netTotalEl.parentElement.classList.toggle('bg-red-50', net < 0);
@@ -1719,7 +1721,7 @@
         const renderTaxView = (transactions) => {
             if (!transactions) return;
             
-            // Filter transactions for Taxable Profit
+            // Filter transactions: Must NOT include Owner's Draw or Transfer in Expenses
             let totalIncome = 0;
             let totalExpense = 0;
             
@@ -1730,8 +1732,7 @@
                         totalIncome += tx.amount;
                     }
                 } else {
-                    // Expense Calculation for S-Corp:
-                    // Officer Salary IS an expense. Owner's Draw is NOT.
+                    // CRITICAL: Do not count Owner's Draw OR Transfer as an expense for Tax Calculation
                     if (tx.category !== "Owner's Draw" && tx.category !== "Transfer") {
                          totalExpense += tx.amount;
                     }
