@@ -246,6 +246,9 @@
                         <div id="view-transactions">
                             <div class="mb-4 flex flex-wrap items-center gap-4">
                                <button id="import-more-transactions-button" class="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 text-sm font-semibold">Import More Transactions</button>
+                               <button id="start-reconcile-btn" class="bg-teal-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 text-sm font-semibold">
+                                    ⚖️ Reconcile
+                               </button>
                                <!-- Transaction Search Bar -->
                                 <div class="relative flex-grow md:flex-grow-0 md:w-64">
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -914,6 +917,16 @@
         const confirmModal = document.getElementById('confirm-modal');
         const confirmDeleteButton = document.getElementById('confirm-delete-button');
         const cancelDeleteButton = document.getElementById('cancel-delete-button');
+
+        // Reconciliation Elements
+        const startReconcileBtn = document.getElementById('start-reconcile-btn');
+        const reconcileModal = document.getElementById('reconcile-modal');
+        const closeReconBtn = document.getElementById('close-recon-btn');
+        const reconCalcBalanceEl = document.getElementById('recon-calc-balance');
+        const reconBankBalanceInput = document.getElementById('recon-bank-balance');
+        const reconDifferenceEl = document.getElementById('recon-difference');
+        const reconSuccessMsg = document.getElementById('recon-success-msg');
+        const reconErrorMsg = document.getElementById('recon-error-msg');
 
         // --- AUTH FUNCTIONS ---
         const handleLogin = async () => {
@@ -2041,30 +2054,53 @@
 
         // --- RECONCILIATION LOGIC ---
         const calculateClearedBalance = () => {
-            // Sum all transactions that are marked as 'reconciled'
+            // Filter for only 'transaction' type that are marked 'reconciled'
             const clearedTx = allData.filter(d => d.type === 'transaction' && d.reconciled);
-            return clearedTx.reduce((sum, tx) => sum + tx.amount, 0);
+            
+            // Sum them up
+            const total = clearedTx.reduce((sum, tx) => sum + tx.amount, 0);
+            return total;
         };
 
+        // 2. Update the modal UI
         const updateReconUI = () => {
             const clearedTotal = calculateClearedBalance();
-            const bankBalance = parseFloat(els.reconBankBalance.value) || 0;
-            const diff = bankBalance - clearedTotal;
+            const bankStatementBalance = parseFloat(reconBankBalanceInput.value) || 0;
+            const difference = bankStatementBalance - clearedTotal;
 
-            els.reconCalcBalance.textContent = fmtMoney(clearedTotal);
-            els.reconDifference.textContent = fmtMoney(diff);
+            reconCalcBalanceEl.textContent = formatCurrency(clearedTotal);
+            reconDifferenceEl.textContent = formatCurrency(difference);
 
-            // Using 0.01 tolerance for floating point math
-            if (Math.abs(diff) < 0.01) {
-                els.reconDifference.className = "text-green-600 font-bold";
-                els.reconSuccessMsg.classList.remove('hidden');
-                els.reconErrorMsg.classList.add('hidden');
+            // Visual Feedback
+            if (Math.abs(difference) < 0.01) {
+                // Perfect Match (allowing for tiny penny rounding errors)
+                reconDifferenceEl.className = "text-green-600 font-bold";
+                reconSuccessMsg.classList.remove('hidden');
+                reconErrorMsg.classList.add('hidden');
             } else {
-                els.reconDifference.className = "text-red-600 font-bold";
-                els.reconSuccessMsg.classList.add('hidden');
-                els.reconErrorMsg.classList.remove('hidden');
+                // Mismatch
+                reconDifferenceEl.className = "text-red-600 font-bold";
+                reconSuccessMsg.classList.add('hidden');
+                reconErrorMsg.classList.remove('hidden');
             }
         };
+
+        // 3. Event Listeners
+        startReconcileBtn.addEventListener('click', () => {
+            reconcileModal.classList.remove('hidden');
+            // Scale animation
+            setTimeout(() => reconcileModal.querySelector('.modal-content').classList.replace('scale-95', 'scale-100'), 10);
+            updateReconUI();
+        });
+
+        closeReconBtn.addEventListener('click', () => {
+            reconcileModal.querySelector('.modal-content').classList.replace('scale-100', 'scale-95');
+            setTimeout(() => reconcileModal.classList.add('hidden'), 300);
+        });
+
+        // Recalculate instantly when you type the bank balance
+        reconBankBalanceInput.addEventListener('input', updateReconUI);
+
 
         // --- EVENT LISTENERS ---
         // Auth Events
@@ -2261,7 +2297,7 @@
 
         // Guide Content Population
         const guideContent = [
-             { title: "1. Bank Reconciliation", content: "<p class='mb-2'><strong>What it is:</strong> Comparing your bank statements against your bookkeeping records to ensure they match. This helps catch errors, fraudulent transactions, and bank fees.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>At the end of each month, get your bank statement.</li><li>Use the \"Transactions\" tab in this tool. Check the 'Rec' box for each transaction that matches your bank statement.</li><li>The 'Unreconciled' count on the dashboard will help you track your progress.</li><li>Investigate any discrepancies immediately.</li></ol>" },
+             { title: "1. Bank Reconciliation", content: "<p class='mb-2'><strong>What it is:</strong> Comparing your bank statements against your bookkeeping records to ensure they match. This helps catch errors, fraudulent transactions, and bank fees.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>At the end of each month, get your bank statement.</li><li>Use the \"Transactions\" tab in this tool. Check the 'Rec' box for each transaction that matches your bank statement.</li><li>The 'Unreconciled' count on the dashboard will help you track your progress.</li><li>Investigate any discrepancies immediately.</li><li>Use the new <strong>⚖️ Reconcile</strong> button to verify your math.</li></ol>" },
             { title: "2. Job Costing & Profitability", content: "<p class='mb-2'><strong>What it is:</strong> Tracking all income and expenses associated with a specific job or customer to determine its profitability.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>In the \"Transactions\" view, click 'Edit' on each transaction.</li><li>Assign a unique \"Job/Customer Name\" to all related income (customer payments) and expenses (parts, materials, labor).</li><li>Switch to the \"Job Profitability\" tab to see a real-time summary of profit for each job.</li><li>Use this insight to adjust your pricing and identify your most profitable types of work.</li></ol>" },
             { title: "3. Accounts Payable (A/P) & Receivable (A/R)", content: "<p class='mb-2'><strong>Accounts Payable (A/P):</strong> Money you owe to suppliers. Use the 'A/P (Bills)' tab to manually enter bills you receive. Track what's been paid and what's outstanding.</p><p class='mb-2'><strong>Accounts Receivable (A/R):</strong> Money customers owe you. Use the 'A/R (Invoices)' tab to enter invoices you send out. You can also import your invoice CSV here. This helps you track who has paid and follow up on overdue amounts.</p><p><strong>Reconciliation:</strong> When you pay a bill or receive a payment, the transaction will appear in your bank feed on the 'Transactions' tab after you import your CSV. You should then mark the corresponding item in the A/P or A/R tab as 'Paid'.</p>" },
             { title: "4. Using Reports", content: "<p class='mb-2'>The 'Reports' tab provides crucial financial insights:</p><ul class='list-disc list-inside ml-4 space-y-1'><li><strong>Profit & Loss:</strong> Shows your income, expenses, and net profit for the selected period, broken down by category.</li><li><strong>A/R Aging:</strong> Shows who owes you money and how long the payment has been overdue. Use this to prioritize collection calls.</li><li><strong>A/P Aging:</strong> Shows who you owe money to and when your bills are due. Use this to manage your cash flow and pay bills on time.</li></ul>" },
