@@ -257,7 +257,12 @@
                             <!-- TRANSACTIONS VIEW -->
                             <div id="view-transactions">
                                 <div class="p-4 border-b border-gray-200 flex justify-between items-center gap-4 bg-white">
-                                    <button id="import-more-transactions-button" class="text-indigo-600 hover:text-indigo-800 text-sm font-semibold">+ Import More</button>
+                                    <div class="flex items-center gap-2">
+                                        <button id="import-more-transactions-button" class="text-indigo-600 hover:text-indigo-800 text-sm font-semibold">+ Import More</button>
+                                        <button id="start-reconcile-btn" class="bg-teal-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-teal-700 transition-colors shadow-sm flex items-center gap-1">
+                                            <span>⚖️</span> Reconcile
+                                        </button>
+                                    </div>
                                     <input type="text" id="transaction-search" class="block w-full max-w-xs rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm" placeholder="Search transactions...">
                                 </div>
                                 <div class="overflow-x-auto table-scrollbar max-h-[600px]">
@@ -557,6 +562,42 @@
         </div>
     </div>
 
+    <!-- Reconcile Modal -->
+    <div id="reconcile-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop p-4">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md transform scale-95 overflow-hidden">
+            <div class="p-6">
+                <h3 class="text-lg font-bold text-gray-900 mb-2">Reconcile Bank Account</h3>
+                <p class="text-sm text-gray-500 mb-4">Enter the "Ending Balance" from your official Bank Statement.</p>
+                
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4 space-y-3">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-600">Your "Checked" Items Total:</span>
+                        <span id="recon-calc-balance" class="font-mono font-bold text-gray-900">$0.00</span>
+                    </div>
+                    <div class="flex justify-between items-center gap-2">
+                        <label for="recon-bank-balance" class="text-sm font-medium text-gray-900 whitespace-nowrap">Statement Balance:</label>
+                        <input type="number" id="recon-bank-balance" placeholder="0.00" step="0.01" class="w-32 text-right rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div class="border-t border-gray-300 my-2"></div>
+                    <div class="flex justify-between text-lg font-bold items-center">
+                        <span>Difference:</span>
+                        <span id="recon-difference" class="text-gray-900">$0.00</span>
+                    </div>
+                </div>
+
+                <div id="recon-success-msg" class="hidden bg-green-100 text-green-800 p-3 rounded-md text-sm text-center font-bold border border-green-200">
+                    ✅ BALANCED! You are good to go.
+                </div>
+                <div id="recon-error-msg" class="hidden bg-red-100 text-red-800 p-3 rounded-md text-sm text-center font-bold border border-red-200">
+                    ❌ OFF BALANCE. Check your inputs.
+                </div>
+            </div>
+            <div class="bg-gray-50 px-6 py-3 flex flex-row-reverse">
+                <button id="close-recon-btn" class="w-full sm:w-auto bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md shadow-sm text-sm font-medium hover:bg-gray-50">Close</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast -->
     <div id="toast" class="fixed top-5 right-5 bg-gray-800 text-white py-3 px-6 rounded-lg shadow-lg font-medium text-sm"></div>
 
@@ -619,7 +660,16 @@
             reportTabs: document.querySelectorAll('[id^="report-tab-"]'),
             reportContents: document.querySelectorAll('[id^="report-"][id$="-content"]'),
             yearFilter: document.getElementById('year-filter'),
-            monthFilter: document.getElementById('month-filter')
+            monthFilter: document.getElementById('month-filter'),
+            // Reconciliation Elements
+            startReconcileBtn: document.getElementById('start-reconcile-btn'),
+            reconcileModal: document.getElementById('reconcile-modal'),
+            closeReconBtn: document.getElementById('close-recon-btn'),
+            reconCalcBalance: document.getElementById('recon-calc-balance'),
+            reconBankBalance: document.getElementById('recon-bank-balance'),
+            reconDifference: document.getElementById('recon-difference'),
+            reconSuccessMsg: document.getElementById('recon-success-msg'),
+            reconErrorMsg: document.getElementById('recon-error-msg')
         };
 
         // --- Initialization ---
@@ -1026,6 +1076,43 @@
             document.getElementById('tax-year-warning').classList.toggle('hidden', isSpecificYear);
             ['q1','q2','q3','q4'].forEach(q => document.getElementById(`tax-${q}`).textContent = isSpecificYear ? fmtMoney(qPayment) : '-');
         };
+
+        // --- RECONCILIATION LOGIC ---
+        const calculateClearedBalance = () => {
+            // Sum all transactions that are marked as 'reconciled'
+            const clearedTx = allData.filter(d => d.type === 'transaction' && d.reconciled);
+            return clearedTx.reduce((sum, tx) => sum + tx.amount, 0);
+        };
+
+        const updateReconUI = () => {
+            const clearedTotal = calculateClearedBalance();
+            const bankBalance = parseFloat(els.reconBankBalance.value) || 0;
+            const diff = bankBalance - clearedTotal;
+
+            els.reconCalcBalance.textContent = fmtMoney(clearedTotal);
+            els.reconDifference.textContent = fmtMoney(diff);
+
+            // Using 0.01 tolerance for floating point math
+            if (Math.abs(diff) < 0.01) {
+                els.reconDifference.className = "text-green-600 font-bold";
+                els.reconSuccessMsg.classList.remove('hidden');
+                els.reconErrorMsg.classList.add('hidden');
+            } else {
+                els.reconDifference.className = "text-red-600 font-bold";
+                els.reconSuccessMsg.classList.add('hidden');
+                els.reconErrorMsg.classList.remove('hidden');
+            }
+        };
+
+        // Reconcile Event Listeners
+        els.startReconcileBtn.onclick = () => {
+            els.reconcileModal.classList.remove('hidden');
+            // Slight delay to trigger animation if we added transitions
+            updateReconUI();
+        };
+        els.closeReconBtn.onclick = () => els.reconcileModal.classList.add('hidden');
+        els.reconBankBalance.oninput = updateReconUI;
+
 
         // --- Utils ---
         const fmtMoney = (n) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
