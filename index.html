@@ -9,6 +9,8 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <!-- ADDED: LZ-String for Data Compression -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -115,7 +117,7 @@
                             <!-- Service App Link -->
                             <a href="https://www.appsheet.com/start/90811d78-1165-4542-bbaa-af393ca455a5?platform=desktop#appName=SVC-QApp-721685306&vss=H4sIAAAAAAAAA52OvQ7CMBCD38VzniArYgAEC4iFdEibqxTRJlWTAlWUd-fCj1iB8Xz-bCdcLF33UTdnyFP6XBuaIZEUDvNAClJh4V0cfacgFHa6f4prXweFjFyJNxspQKbvUfl_q4A15KJtLY0lp1DMvxh-F4KF4kcW6Keo644eI9mfM2utb6ZA5sgTfqwOK7e8DdqZrTcc1-ouUL4DXt8N6VEBAAA=&view=Jobs" target="_blank" class="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100 transition-colors">
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                                Service Q
+                                Service App
                             </a>
 
                             <!-- Invoice Generator Link -->
@@ -123,11 +125,7 @@
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                 Invoice Gen
                             </a>
-                            <!-- Receipt Link -->
-                            <a href="https://servicecoinrwb.github.io/HVAC-Receipt-Tracker/" target="_blank" class="flex items-center gap-1 text-emerald-700 hover:text-emerald-900 text-xs font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-100 transition-colors">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
-                                Receipt
-                            </a>
+                            
                             <!-- Bank Link -->
                             <a href="https://www.communitychoicecu.com/" target="_blank" class="flex items-center gap-1 text-emerald-700 hover:text-emerald-900 text-xs font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-100 transition-colors">
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"></path></svg>
@@ -246,9 +244,6 @@
                         <div id="view-transactions">
                             <div class="mb-4 flex flex-wrap items-center gap-4">
                                <button id="import-more-transactions-button" class="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 text-sm font-semibold">Import More Transactions</button>
-                               <button id="start-reconcile-btn" class="bg-teal-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 text-sm font-semibold">
-                                    ⚖️ Reconcile
-                               </button>
                                <!-- Transaction Search Bar -->
                                 <div class="relative flex-grow md:flex-grow-0 md:w-64">
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -663,41 +658,6 @@
         </div>
     </div>
 
-    <!-- Reconcile Modal -->
-    <div id="reconcile-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop p-4">
-        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md transform scale-95 overflow-hidden">
-            <div class="p-6">
-                <h3 class="text-lg font-bold text-gray-900 mb-2">Reconcile Bank Account</h3>
-                <p class="text-sm text-gray-500 mb-4">Enter the "Ending Balance" from your official Bank Statement.</p>
-                
-                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4 space-y-3">
-                    <div class="flex justify-between text-sm">
-                        <span class="text-gray-600">Your "Checked" Items Total:</span>
-                        <span id="recon-calc-balance" class="font-mono font-bold text-gray-900">$0.00</span>
-                    </div>
-                    <div class="flex justify-between items-center gap-2">
-                        <label for="recon-bank-balance" class="text-sm font-medium text-gray-900 whitespace-nowrap">Statement Balance:</label>
-                        <input type="number" id="recon-bank-balance" placeholder="0.00" step="0.01" class="w-32 text-right rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                    </div>
-                    <div class="border-t border-gray-300 my-2"></div>
-                    <div class="flex justify-between text-lg font-bold items-center">
-                        <span>Difference:</span>
-                        <span id="recon-difference" class="text-gray-900">$0.00</span>
-                    </div>
-                </div>
-
-                <div id="recon-success-msg" class="hidden bg-green-100 text-green-800 p-3 rounded-md text-sm text-center font-bold border border-green-200">
-                    ✅ BALANCED! You are good to go.
-                </div>
-                <div id="recon-error-msg" class="hidden bg-red-100 text-red-800 p-3 rounded-md text-sm text-center font-bold border border-red-200">
-                    ❌ OFF BALANCE. Check your inputs.
-                </div>
-            </div>
-            <div class="bg-gray-50 px-6 py-3 flex flex-row-reverse">
-                <button id="close-recon-btn" class="w-full sm:w-auto bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md shadow-sm text-sm font-medium hover:bg-gray-50">Close</button>
-            </div>
-        </div>
-    </div>
 
     <!-- Toast Notification -->
     <div id="toast" class="fixed top-5 right-5 bg-green-500 text-white py-2 px-4 rounded-lg shadow-md transition-transform duration-300">
@@ -734,7 +694,7 @@
             'COGS - Equipment',
             'COGS - Parts & Materials',
             'Subcontractors',
-            'Payroll Expenses (Wages & Taxes)', // NEW: For your employees
+            'Payroll Expenses (Wages & Taxes)', // Use this for EMPLOYEES
             'Vehicle Expenses (Fuel, Repairs)',
             'Tools & Small Equipment',
             'Permits & Licenses',
@@ -744,6 +704,7 @@
             'Rent/Lease',
             'Utilities',
             'Owner\'s Draw',
+            'Paycheck', // NEW: Added so your existing data shows up correctly
             'Transfer', 
             'Uncategorized'
         ];
@@ -794,6 +755,7 @@
         const totalAREl = document.getElementById('total-ar');
         const totalAPEl = document.getElementById('total-ap');
         const totalUnreconciledEl = document.getElementById('total-unreconciled'); 
+        const totalDrawsEl = document.getElementById('total-draws'); // New element for Owner's Pay
         const arCard = document.getElementById('ar-card');
         const arPastDueWarning = document.getElementById('ar-past-due-warning');
         const importMoreTransactionsButton = document.getElementById('import-more-transactions-button');
@@ -917,16 +879,6 @@
         const confirmModal = document.getElementById('confirm-modal');
         const confirmDeleteButton = document.getElementById('confirm-delete-button');
         const cancelDeleteButton = document.getElementById('cancel-delete-button');
-
-        // Reconciliation Elements
-        const startReconcileBtn = document.getElementById('start-reconcile-btn');
-        const reconcileModal = document.getElementById('reconcile-modal');
-        const closeReconBtn = document.getElementById('close-recon-btn');
-        const reconCalcBalanceEl = document.getElementById('recon-calc-balance');
-        const reconBankBalanceInput = document.getElementById('recon-bank-balance');
-        const reconDifferenceEl = document.getElementById('recon-difference');
-        const reconSuccessMsg = document.getElementById('recon-success-msg');
-        const reconErrorMsg = document.getElementById('recon-error-msg');
 
         // --- AUTH FUNCTIONS ---
         const handleLogin = async () => {
@@ -1231,58 +1183,35 @@
             renderTransactions(filteredTransactions);
             
             // Calculate Dashboard based on FILTERED items
-            // Note: For accurate totals, we usually want dashboard to reflect ALL data in period, 
-            // not just search results. But let's keep it consistent with filters.
-            updateDashboard(filteredTransactions, arItems, apItems); 
+            updateDashboard(transactions, arItems, apItems); 
 
-            renderJobProfitability(filteredTransactions);
+            renderJobProfitability(transactions);
             renderAR(arItems);
             renderAP(apItems);
-            renderReports(transactions, arItems, apItems); // Reports usually look at full period data
+            renderReports(transactions, arItems, apItems);
             renderTaxView(transactions);
         };
 
-        const renderTransactions = (data) => {
-            transactionTableBody.innerHTML = '';
-            if (data.length === 0) {
-                 transactionTableBody.innerHTML = `<tr><td colspan="7" class="text-center py-10 text-gray-500">No transactions found.</td></tr>`;
-                 return;
-            }
-            
-            data.forEach(tx => {
-                const row = document.createElement('tr');
-                const amountClass = tx.amount >= 0 ? 'text-green-600' : 'text-red-600';
-                const categoryClass = tx.category === 'Uncategorized' ? 'bg-yellow-100 text-yellow-800' : 'bg-gray-100 text-gray-800';
-                row.innerHTML = `
-                    <td class="px-2 py-4 whitespace-nowrap text-sm text-center">
-                        <input type="checkbox" data-id="${tx.id}" class="reconcile-checkbox h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500" ${tx.reconciled ? 'checked' : ''}>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(tx.date).toLocaleDateString()}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 max-w-xs truncate" title="${tx.description}">${tx.description}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${amountClass}">${formatCurrency(tx.amount)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm">
-                        <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${categoryClass}">${tx.category}</span>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${tx.job || ''}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button data-id="${tx.id}" class="edit-btn text-indigo-600 hover:text-indigo-900">Edit</button>
-                    </td>
-                `;
-                transactionTableBody.appendChild(row);
-            });
-        };
-
-        // Update Dashboard Logic (Cash Flow + Transfer Handling)
+        // Update Dashboard Logic (Smart Paycheck Handling)
         const updateDashboard = (transactions, arItems, apItems) => {
-             // Income: Positive amounts, excluding "Transfer" category (so savings transfer isn't revenue)
+             // Income: Positive amounts, excluding "Transfer"
             const income = transactions.filter(tx => tx.amount >= 0 && tx.category !== "Transfer").reduce((sum, tx) => sum + tx.amount, 0);
             
             // Expense: Negative amounts
-            // Logic: We EXCLUDE "Owner's Draw" (Equity) and "Transfer" (Movement). 
-            const expense = transactions.filter(tx => tx.amount < 0 && tx.category !== "Owner's Draw" && tx.category !== "Transfer").reduce((sum, tx) => sum + tx.amount, 0);
+            // Logic: We EXCLUDE "Owner's Draw", "Transfer", AND "Paycheck" (for Sole Prop owner)
+            const expense = transactions.filter(tx => {
+                return tx.amount < 0 && 
+                       tx.category !== "Owner's Draw" && 
+                       tx.category !== "Transfer";
+                       // Paycheck is INCLUDED in Expense (for Employees)
+            }).reduce((sum, tx) => sum + tx.amount, 0);
             
-            // Net (Cash Flow): Sum of EVERYTHING visible (Income + Expense + Draws + Transfers)
-            // This ensures the "Net" matches the Bank Balance exactly.
+            // Owner's Pay: Sum of Draws
+            const draws = transactions.filter(tx => {
+                return tx.amount < 0 && tx.category === "Owner's Draw";
+            }).reduce((sum, tx) => sum + tx.amount, 0);
+            
+            // Net (Cash Flow): Sum of EVERYTHING visible
             const net = transactions.reduce((sum, tx) => sum + tx.amount, 0);
 
             const totalAR = arItems.filter(i => i.status === 'unpaid').reduce((sum, i) => sum + i.amount, 0);
@@ -1296,11 +1225,16 @@
             totalIncomeEl.textContent = formatCurrency(income);
             totalExpenseEl.textContent = formatCurrency(Math.abs(expense));
             netTotalEl.textContent = formatCurrency(net);
+            
+            // Update the Owner's Pay Card
+            if(totalDrawsEl) totalDrawsEl.textContent = formatCurrency(Math.abs(draws));
+            
             totalAREl.textContent = formatCurrency(totalAR);
             totalAPEl.textContent = formatCurrency(totalAP);
             
             if(totalUnreconciledEl) totalUnreconciledEl.textContent = unreconciledCount;
-
+            
+            // ... rest of styling logic ...
             netTotalEl.parentElement.classList.toggle('bg-red-50', net < 0);
             netTotalEl.parentElement.classList.toggle('border-red-500', net < 0);
             netTotalEl.parentElement.classList.toggle('text-red-800', net < 0);
@@ -1666,22 +1600,20 @@
             renderAgingReport('ap', apItems);
         }
         
-        // NEW: Vendor Report Logic
+        // NEW: Vendor Report Logic (Updated to exclude Paycheck)
         const renderVendorReport = (data) => {
             const vendorTotals = {};
             let totalExpenses = 0;
 
             data.forEach(tx => {
-                // Only look at expenses, exclude Owner's Draw AND Transfer
-                if (tx.amount < 0 && tx.category !== "Owner's Draw" && tx.category !== "Transfer") {
-                    // Clean up description to group similar vendors (e.g., remove numbers)
-                    // "Home Depot 0552" -> "Home Depot"
+                // Only look at expenses, exclude Owner's Draw, Transfer
+                // INCLUDE Paycheck (because it's employee expense)
+                if (tx.amount < 0 && 
+                    tx.category !== "Owner's Draw" && 
+                    tx.category !== "Transfer") {
+                    
                     let vendorName = tx.description.replace(/[0-9#*-]/g, '').trim();
-                    
-                    // Fallback if cleanup makes it empty
                     if(!vendorName) vendorName = tx.description;
-                    
-                    // Shorten very long names
                     if(vendorName.length > 25) vendorName = vendorName.substring(0, 25) + '...';
 
                     if (!vendorTotals[vendorName]) vendorTotals[vendorName] = 0;
@@ -1689,8 +1621,7 @@
                     totalExpenses += Math.abs(tx.amount);
                 }
             });
-
-            // Convert to array and sort by highest spending
+            // ... rest of report logic ...
             const sortedVendors = Object.keys(vendorTotals).map(key => {
                 return { name: key, amount: vendorTotals[key] };
             }).sort((a, b) => b.amount - a.amount);
@@ -1727,87 +1658,23 @@
             `;
             reportVendorsContent.innerHTML = reportHTML;
         };
-
-        const renderPLReport = (data) => {
-            const incomeByCategory = {};
-            const expensesByCategory = {};
-            let totalIncome = 0;
-            let totalExpense = 0;
-
-            data.forEach(tx => {
-                // EXCLUDE TRANSFERS
-                if(tx.category === "Transfer") return;
-
-                if (tx.amount >= 0) {
-                    if (!incomeByCategory[tx.category]) incomeByCategory[tx.category] = 0;
-                    incomeByCategory[tx.category] += tx.amount;
-                    totalIncome += tx.amount;
-                } else {
-                    if (!expensesByCategory[tx.category]) expensesByCategory[tx.category] = 0;
-                    expensesByCategory[tx.category] += tx.amount;
-                    totalExpense += tx.amount;
-                }
-            });
-
-            let reportHTML = `
-                <div class="space-y-6">
-                    <div>
-                        <h4 class="font-semibold text-lg mb-2">Income</h4>
-                        <div class="divide-y divide-gray-200">
-                            ${Object.keys(incomeByCategory).sort().map(cat => `
-                                <div class="flex justify-between py-2">
-                                    <span>${cat}</span>
-                                    <span>${formatCurrency(incomeByCategory[cat])}</span>
-                                </div>
-                            `).join('') || `<div class="py-2 text-gray-500">No income recorded.</div>`}
-                        </div>
-                        <div class="flex justify-between py-2 font-bold border-t-2 mt-2">
-                            <span>Total Income</span>
-                            <span>${formatCurrency(totalIncome)}</span>
-                        </div>
-                    </div>
-
-                    <div>
-                        <h4 class="font-semibold text-lg mb-2">Expenses</h4>
-                        <div class="divide-y divide-gray-200">
-                            ${Object.keys(expensesByCategory).sort().map(cat => `
-                                <div class="flex justify-between py-2">
-                                    <span>${cat}</span>
-                                    <span>${formatCurrency(Math.abs(expensesByCategory[cat]))}</span>
-                                </div>
-                            `).join('') || `<div class="py-2 text-gray-500">No expenses recorded.</div>`}
-                        </div>
-                        <div class="flex justify-between py-2 font-bold border-t-2 mt-2">
-                            <span>Total Expenses</span>
-                            <span>${formatCurrency(Math.abs(totalExpense))}</span>
-                        </div>
-                    </div>
-
-                    <div class="flex justify-between py-3 font-extrabold text-xl border-t-4 mt-4">
-                        <span>Net Profit</span>
-                        <span class="${(totalIncome + totalExpense) >= 0 ? 'text-green-600' : 'text-red-600'}">${formatCurrency(totalIncome + totalExpense)}</span>
-                    </div>
-                </div>
-            `;
-            reportPlContent.innerHTML = reportHTML;
-        };
         
         const renderTaxView = (transactions) => {
             if (!transactions) return;
             
-            // Filter transactions: Must NOT include Owner's Draw or Transfer in Expenses
             let totalIncome = 0;
             let totalExpense = 0;
             
             transactions.forEach(tx => {
                 if (tx.amount >= 0) {
-                    // Exclude incoming Transfers
                     if (tx.category !== "Transfer") {
                         totalIncome += tx.amount;
                     }
                 } else {
-                    // CRITICAL: Do not count Owner's Draw OR Transfer as an expense for Tax Calculation
-                    if (tx.category !== "Owner's Draw" && tx.category !== "Transfer") {
+                    // CRITICAL: Do not count Owner's Draw OR Transfer as expense
+                    // Paycheck IS an expense (Employee Wages)
+                    if (tx.category !== "Owner's Draw" && 
+                        tx.category !== "Transfer") {
                          totalExpense += tx.amount;
                     }
                 }
@@ -1818,11 +1685,9 @@
             const estimatedTax = Math.max(0, netProfit * taxRate);
             const quarterlyPayment = estimatedTax / 4;
             
-            // Update DOM
             taxNetProfitEl.textContent = formatCurrency(netProfit);
             taxTotalDueEl.textContent = formatCurrency(estimatedTax);
             
-            // Warn if 'All Years' is selected
             if (yearFilter.value === 'all') {
                 taxYearWarning.classList.remove('hidden');
                 [taxQ1El, taxQ2El, taxQ3El, taxQ4El].forEach(el => el.textContent = "---");
@@ -2052,55 +1917,6 @@
             }
         };
 
-        // --- RECONCILIATION LOGIC ---
-        const calculateClearedBalance = () => {
-            // Filter for only 'transaction' type that are marked 'reconciled'
-            const clearedTx = allData.filter(d => d.type === 'transaction' && d.reconciled);
-            
-            // Sum them up
-            const total = clearedTx.reduce((sum, tx) => sum + tx.amount, 0);
-            return total;
-        };
-
-        // 2. Update the modal UI
-        const updateReconUI = () => {
-            const clearedTotal = calculateClearedBalance();
-            const bankStatementBalance = parseFloat(reconBankBalanceInput.value) || 0;
-            const difference = bankStatementBalance - clearedTotal;
-
-            reconCalcBalanceEl.textContent = formatCurrency(clearedTotal);
-            reconDifferenceEl.textContent = formatCurrency(difference);
-
-            // Visual Feedback
-            if (Math.abs(difference) < 0.01) {
-                // Perfect Match (allowing for tiny penny rounding errors)
-                reconDifferenceEl.className = "text-green-600 font-bold";
-                reconSuccessMsg.classList.remove('hidden');
-                reconErrorMsg.classList.add('hidden');
-            } else {
-                // Mismatch
-                reconDifferenceEl.className = "text-red-600 font-bold";
-                reconSuccessMsg.classList.add('hidden');
-                reconErrorMsg.classList.remove('hidden');
-            }
-        };
-
-        // 3. Event Listeners
-        startReconcileBtn.addEventListener('click', () => {
-            reconcileModal.classList.remove('hidden');
-            // Scale animation
-            setTimeout(() => reconcileModal.querySelector('.modal-content').classList.replace('scale-95', 'scale-100'), 10);
-            updateReconUI();
-        });
-
-        closeReconBtn.addEventListener('click', () => {
-            reconcileModal.querySelector('.modal-content').classList.replace('scale-100', 'scale-95');
-            setTimeout(() => reconcileModal.classList.add('hidden'), 300);
-        });
-
-        // Recalculate instantly when you type the bank balance
-        reconBankBalanceInput.addEventListener('input', updateReconUI);
-
 
         // --- EVENT LISTENERS ---
         // Auth Events
@@ -2297,12 +2113,13 @@
 
         // Guide Content Population
         const guideContent = [
-             { title: "1. Bank Reconciliation", content: "<p class='mb-2'><strong>What it is:</strong> Comparing your bank statements against your bookkeeping records to ensure they match. This helps catch errors, fraudulent transactions, and bank fees.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>At the end of each month, get your bank statement.</li><li>Use the \"Transactions\" tab in this tool. Check the 'Rec' box for each transaction that matches your bank statement.</li><li>The 'Unreconciled' count on the dashboard will help you track your progress.</li><li>Investigate any discrepancies immediately.</li><li>Use the new <strong>⚖️ Reconcile</strong> button to verify your math.</li></ol>" },
+             { title: "1. Bank Reconciliation", content: "<p class='mb-2'><strong>What it is:</strong> Comparing your bank statements against your bookkeeping records to ensure they match. This helps catch errors, fraudulent transactions, and bank fees.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>At the end of each month, get your bank statement.</li><li>Use the \"Transactions\" tab in this tool. Check the 'Rec' box for each transaction that matches your bank statement.</li><li>The 'Unreconciled' count on the dashboard will help you track your progress.</li><li>Investigate any discrepancies immediately.</li></ol>" },
             { title: "2. Job Costing & Profitability", content: "<p class='mb-2'><strong>What it is:</strong> Tracking all income and expenses associated with a specific job or customer to determine its profitability.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>In the \"Transactions\" view, click 'Edit' on each transaction.</li><li>Assign a unique \"Job/Customer Name\" to all related income (customer payments) and expenses (parts, materials, labor).</li><li>Switch to the \"Job Profitability\" tab to see a real-time summary of profit for each job.</li><li>Use this insight to adjust your pricing and identify your most profitable types of work.</li></ol>" },
             { title: "3. Accounts Payable (A/P) & Receivable (A/R)", content: "<p class='mb-2'><strong>Accounts Payable (A/P):</strong> Money you owe to suppliers. Use the 'A/P (Bills)' tab to manually enter bills you receive. Track what's been paid and what's outstanding.</p><p class='mb-2'><strong>Accounts Receivable (A/R):</strong> Money customers owe you. Use the 'A/R (Invoices)' tab to enter invoices you send out. You can also import your invoice CSV here. This helps you track who has paid and follow up on overdue amounts.</p><p><strong>Reconciliation:</strong> When you pay a bill or receive a payment, the transaction will appear in your bank feed on the 'Transactions' tab after you import your CSV. You should then mark the corresponding item in the A/P or A/R tab as 'Paid'.</p>" },
             { title: "4. Using Reports", content: "<p class='mb-2'>The 'Reports' tab provides crucial financial insights:</p><ul class='list-disc list-inside ml-4 space-y-1'><li><strong>Profit & Loss:</strong> Shows your income, expenses, and net profit for the selected period, broken down by category.</li><li><strong>A/R Aging:</strong> Shows who owes you money and how long the payment has been overdue. Use this to prioritize collection calls.</li><li><strong>A/P Aging:</strong> Shows who you owe money to and when your bills are due. Use this to manage your cash flow and pay bills on time.</li></ul>" },
-            { title: "5. Inventory Management", content: "<p class='mb-2'><strong>What it is:</strong> Tracking the parts and equipment you have in stock, both in your shop and in your service vans.</p><p><strong>How to do it:</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>Keep a simple spreadsheet or use dedicated software to list all inventory items.</li><li>When you purchase new parts, categorize the transaction as \"Inventory Purchase\" or similar.</li><li>When you use a part on a job, note it in your job costs. This moves the cost from an asset (inventory) to an expense (Cost of Goods Sold).</li><li>Periodically count your physical inventory to ensure it matches your records.</li></ol>" },
-            { title: "6. Splitting Transactions", content: "<p class='mb-2'><strong>What it is:</strong> Sometimes a single purchase needs to be divided among multiple categories or jobs (e.g., a hardware store run buys parts for two different jobs).</p><p><strong>How to handle it (manually):</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>Currently, this tool doesn't support automatic splitting.</li><li>The best practice is to enter the items as separate bills in the 'A/P (Bills)' tab, one for each category/job.</li><li>When the single transaction appears in your bank feed, categorize it to a 'Clearing' or 'Suspense' account.</li><li>Then, in QuickBooks, you can reconcile the single bank transaction against the multiple bills you've created.</li></ol>" }
+            { title: "5. Tax Calendar (Important Dates)", content: "<div class='space-y-3'><div class='border-l-4 border-blue-500 pl-3'><p class='font-bold text-blue-900'>April 15</p><p class='text-sm'>Due: <strong>Annual Tax Return (Form 1040)</strong></p><p class='text-sm'>Due: <strong>Q1 Estimated Tax Payment (You)</strong></p></div><div class='border-l-4 border-blue-500 pl-3'><p class='font-bold text-blue-900'>June 15</p><p class='text-sm'>Due: <strong>Q2 Estimated Tax Payment (You)</strong></p></div><div class='border-l-4 border-blue-500 pl-3'><p class='font-bold text-blue-900'>September 15</p><p class='text-sm'>Due: <strong>Q3 Estimated Tax Payment (You)</strong></p></div><div class='border-l-4 border-blue-500 pl-3'><p class='font-bold text-blue-900'>January 15</p><p class='text-sm'>Due: <strong>Q4 Estimated Tax Payment (You)</strong></p></div><div class='border-l-4 border-gray-500 pl-3 bg-gray-50 p-2 rounded'><p class='font-bold text-gray-900'>Payroll Deadlines (Handled by Payroll Co.)</p><p class='text-xs'>Apr 30 (Q1), July 31 (Q2), Oct 31 (Q3), Jan 31 (Q4 & W-2s)</p></div></div>" },
+            { title: "6. Year-End Tax Checklist", content: "<p class='mb-2'><strong>When:</strong> January - April 15th</p><p><strong>Step 1: Payroll:</strong> Log in to your Payroll Provider (Gusto/ADP) and download your <strong>W-3</strong> and <strong>Form 940</strong>. Save them.</p><p><strong>Step 2: Profit Report:</strong> Go to the <strong>Reports</strong> tab in this app. Select 'Profit & Loss'. Ensure the date range is Jan 1 - Dec 31. Save as PDF.</p><p><strong>Step 3: File Schedule C:</strong> Give both documents to your accountant (or enter into tax software). Your 'Paycheck' expense in this app is your deductible labor cost. Your 'Net Profit' is your taxable income.</p><p><strong>Step 4: Settle Up:</strong> Calculate total tax, subtract the 4 quarterly payments you made, and pay any remaining balance.</p>" },
+            { title: "7. Splitting Transactions", content: "<p class='mb-2'><strong>What it is:</strong> Sometimes a single purchase needs to be divided among multiple categories or jobs (e.g., a hardware store run buys parts for two different jobs).</p><p><strong>How to handle it (manually):</strong></p><ol class='list-decimal list-inside ml-4 space-y-1'><li>Currently, this tool doesn't support automatic splitting.</li><li>The best practice is to enter the items as separate bills in the 'A/P (Bills)' tab, one for each category/job.</li><li>When the single transaction appears in your bank feed, categorize it to a 'Clearing' or 'Suspense' account.</li><li>Then, in QuickBooks, you can reconcile the single bank transaction against the multiple bills you've created.</li></ol>" }
         ];
         const accordionContainer = document.getElementById('accordion-container');
         accordionContainer.innerHTML = guideContent.map(item => `
