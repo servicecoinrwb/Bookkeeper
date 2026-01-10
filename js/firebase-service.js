@@ -9,7 +9,7 @@ const app = initializeApp(FIREBASE_CONFIG);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Export the auth instance so app.js can use it
+// Export auth so app.js can use it
 export { auth };
 
 // --- Auth Functions ---
@@ -20,6 +20,7 @@ export const loginUser = async () => {
         return result.user;
     } catch (error) {
         console.error("Login Error:", error);
+        alert("Login failed. See console for details.");
         throw error;
     }
 };
