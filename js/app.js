@@ -1,4 +1,3 @@
-// js/app.js
 import { auth, loginUser, logoutUser, loadUserData, saveUserData } from "./firebase-service.js";
 import { state } from "./state.js";
 import * as UI from "./ui.js";
@@ -7,58 +6,33 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/fi
 
 // Init
 const init = async () => {
-    // 1. Show the App UI immediately (Optimistic Load)
-    // Don't wait for Firebase to start rendering
-    document.getElementById('auth-loading').classList.remove('hidden'); 
-    
-    // Check local storage immediately
-    const local = localStorage.getItem('bookkeeperSession');
-    if(local) {
-        try {
-            state.transactions = JSON.parse(local);
-            // If we have local data, show the dashboard instantly
-            if(state.transactions.length > 0) {
-                document.getElementById('upload-section').classList.add('hidden');
-                document.getElementById('data-section').classList.remove('hidden');
-                refreshApp(); 
-            }
-        } catch(e) { console.error("Local data corrupted", e); }
-    } else {
-        // If no data, show upload screen instantly
-        document.getElementById('upload-section').classList.remove('hidden');
-        document.getElementById('login-btn').classList.remove('hidden');
-    }
-
-    // 2. Listen for Firebase (Runs in background)
     onAuthStateChanged(auth, async (user) => {
-        document.getElementById('auth-loading').classList.add('hidden');
-        
         if (user) {
-            // User confirmed logged in
             state.currentUser = user;
             document.getElementById('user-info').classList.remove('hidden');
             document.getElementById('user-name').textContent = user.displayName;
             document.getElementById('user-avatar').src = user.photoURL;
             document.getElementById('login-btn').classList.add('hidden');
             
-            // NOW fetch the latest cloud data
             const cloudData = await loadUserData(user.uid);
             if(cloudData) {
                 state.setData(cloudData);
-                refreshApp(); // Update UI with cloud data
+                refreshApp();
             }
         } else {
-            // User confirmed logged out
             state.currentUser = null;
             document.getElementById('user-info').classList.add('hidden');
             document.getElementById('login-btn').classList.remove('hidden');
+            const local = localStorage.getItem('bookkeeperSession');
+            if(local) {
+                state.transactions = JSON.parse(local);
+            }
+            refreshApp(); 
         }
     });
 };
 
 const refreshApp = () => {
-    // Only show main app if there is data or user is logged in, 
-    // BUT we want to allow CSV upload even if empty.
     if (state.transactions.length > 0 || state.currentUser) {
         document.getElementById('upload-section').classList.add('hidden');
         document.getElementById('data-section').classList.remove('hidden');
@@ -69,7 +43,7 @@ const refreshApp = () => {
         UI.renderAPAR('ar');
         UI.renderAPAR('ap');
         UI.renderTaxes();
-        UI.populateCategorySelect('modal-category'); // Pre-fill modals
+        UI.populateCategorySelect('modal-category'); 
         UI.populateCategorySelect('rule-category');
     } else {
         document.getElementById('upload-section').classList.remove('hidden');
@@ -91,16 +65,19 @@ tabs.forEach(tab => {
             document.getElementById(`view-${tab}`).classList.remove('hidden');
             e.target.classList.add('border-indigo-500', 'text-indigo-600');
             
-            // Special Render Calls for Guide/Reports when clicked
             if(tab === 'guide') UI.renderGuide();
-            if(tab === 'reports') UI.renderReports('pl'); // Default to PL
+            if(tab === 'reports') UI.renderReports('pl'); 
         });
     }
 });
 
 // --- Action Buttons ---
-document.getElementById('save-session-button').addEventListener('click', () => { state.persist(); showToast('Saved!'); });
-document.getElementById('clear-session-button').addEventListener('click', () => document.getElementById('confirm-modal').classList.remove('hidden'));
+const saveBtn = document.getElementById('save-session-button');
+if(saveBtn) saveBtn.addEventListener('click', () => { state.persist(); showToast('Saved!'); });
+
+const clearBtn = document.getElementById('clear-session-button');
+if(clearBtn) clearBtn.addEventListener('click', () => document.getElementById('confirm-modal').classList.remove('hidden'));
+
 document.getElementById('confirm-delete-button').addEventListener('click', () => { state.clear(); location.reload(); });
 document.getElementById('cancel-delete-button').addEventListener('click', () => document.getElementById('confirm-modal').classList.add('hidden'));
 document.getElementById('export-button').addEventListener('click', () => exportToIIF(state.transactions));
@@ -131,22 +108,19 @@ document.getElementById('save-button').addEventListener('click', () => {
     const tx = state.transactions.find(t => t.id === id);
     const oldCat = tx.category;
 
-    // Update current
     state.updateTransaction(id, { category: newCat, job: newJob });
     document.getElementById('edit-modal').classList.add('hidden');
 
-    // Batch Update Check
     if (oldCat !== newCat) {
         const similar = state.transactions.filter(t => 
             t.id !== id && 
-            t.description.split(' ')[0] === tx.description.split(' ')[0] && // Simple fuzzy match
+            t.description.split(' ')[0] === tx.description.split(' ')[0] && 
             t.category === oldCat
         );
         
         if (similar.length > 0) {
             document.getElementById('batch-update-body').textContent = `Found ${similar.length} similar transactions. Update them all to "${newCat}"?`;
             
-            // Temporary listeners for the batch modal
             const yesBtn = document.getElementById('batch-update-confirm-button');
             const noBtn = document.getElementById('batch-update-cancel-button');
             
@@ -158,7 +132,6 @@ document.getElementById('save-button').addEventListener('click', () => {
                 }
                 document.getElementById('batch-update-modal').classList.add('hidden');
                 refreshApp();
-                // Remove listeners to prevent stacking (simple approach)
                 yesBtn.onclick = null;
                 noBtn.onclick = null;
             };
@@ -237,8 +210,12 @@ const openAPAR = (type, id = null) => {
     modal.classList.remove('hidden');
 };
 
-document.getElementById('add-invoice-button').addEventListener('click', () => openAPAR('ar'));
-document.getElementById('add-bill-button').addEventListener('click', () => openAPAR('ap'));
+const invBtn = document.getElementById('add-invoice-button');
+if(invBtn) invBtn.addEventListener('click', () => openAPAR('ar'));
+
+const billBtn = document.getElementById('add-bill-button');
+if(billBtn) billBtn.addEventListener('click', () => openAPAR('ap'));
+
 document.getElementById('ap-ar-cancel-button').addEventListener('click', () => document.getElementById('ap-ar-modal').classList.add('hidden'));
 
 document.getElementById('ap-ar-save-button').addEventListener('click', () => {
@@ -252,7 +229,7 @@ document.getElementById('ap-ar-save-button').addEventListener('click', () => {
         amount: parseFloat(document.getElementById('ap-ar-amount').value) || 0,
         date: document.getElementById('ap-ar-date').value || new Date().toISOString(),
         status: 'unpaid',
-        category: type === 'ar' ? 'Income' : 'Uncategorized' // Default
+        category: type === 'ar' ? 'Income' : 'Uncategorized' 
     };
     
     const existingIdx = state.transactions.findIndex(t => t.id === id);
@@ -264,35 +241,59 @@ document.getElementById('ap-ar-save-button').addEventListener('click', () => {
     refreshApp();
 });
 
-// --- CSV Import ---
+// --- CSV Import (FIXED: Duplicate Detection) ---
 document.getElementById('csv-file').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if(!file) return;
+    
+    // 1. Create a "Set" of existing transactions to check against
+    // We create a unique signature: Date + Description + Amount
+    const existingSignatures = new Set(
+        state.transactions.map(t => `${t.date}-${t.description}-${t.amount}`)
+    );
+
     Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
+            let duplicatesCount = 0;
             const newTxs = results.data.map((row, i) => {
-                // Heuristic to find columns
                 const date = row['Date'] || row['date'] || new Date().toISOString();
                 const desc = row['Description'] || row['description'] || row['Memo'] || 'No Desc';
                 let amt = row['Amount'] || row['amount'] || 0;
-                // Handle Debit/Credit columns
+                
                 if(row['Debit'] && row['Debit'] !== '') amt = -Math.abs(parseFloat(row['Debit']));
                 if(row['Credit'] && row['Credit'] !== '') amt = Math.abs(parseFloat(row['Credit']));
                 
+                // Format the signature to check for duplicates
+                const cleanDate = typeof date === 'string' ? date : new Date().toISOString();
+                const cleanAmt = parseFloat(amt) || 0;
+                const signature = `${cleanDate}-${desc}-${cleanAmt}`;
+
+                // Check if it already exists
+                if (existingSignatures.has(signature)) {
+                    duplicatesCount++;
+                    return null; // Skip this one
+                }
+
                 return {
                     id: `tx-${Date.now()}-${i}`,
-                    date: typeof date === 'string' ? date : new Date().toISOString(),
+                    date: cleanDate,
                     description: desc,
-                    amount: parseFloat(amt) || 0,
+                    amount: cleanAmt,
                     category: 'Uncategorized',
-                    type: 'transaction'
+                    type: 'transaction',
+                    reconciled: false
                 };
-            });
-            state.addTransactions(newTxs);
-            refreshApp();
-            showToast('Imported!');
+            }).filter(Boolean); // Remove the nulls (duplicates)
+
+            if (newTxs.length > 0) {
+                state.addTransactions(newTxs);
+                refreshApp();
+                showToast(`Imported ${newTxs.length} items. Skipped ${duplicatesCount} duplicates.`);
+            } else {
+                showToast(`No new items found. Skipped ${duplicatesCount} duplicates.`, true);
+            }
         }
     });
 });
@@ -303,4 +304,3 @@ document.getElementById('logout-btn').addEventListener('click', () => { logoutUs
 
 // Start
 init();
-
