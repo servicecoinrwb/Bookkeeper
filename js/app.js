@@ -1,7 +1,8 @@
+// js/app.js
 import { auth, loginUser, logoutUser, loadUserData, saveUserData } from "./firebase-service.js";
 import { state } from "./state.js";
 import * as UI from "./ui.js";
-import { showToast, exportToIIF } from "./utils.js";
+import { showToast, exportToIIF, formatCurrency } from "./utils.js"; // Added formatCurrency import
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
 // Init
@@ -88,6 +89,7 @@ document.getElementById('month-filter').addEventListener('change', () => { UI.re
 
 // --- Edit Transaction & Batch Logic ---
 document.getElementById('transaction-table').addEventListener('click', (e) => {
+    // Edit Button
     if(e.target.classList.contains('edit-btn')) {
         const id = e.target.dataset.id;
         const tx = state.transactions.find(t => t.id === id);
@@ -97,6 +99,23 @@ document.getElementById('transaction-table').addEventListener('click', (e) => {
         UI.populateCategorySelect('modal-category');
         document.getElementById('modal-category').value = tx.category;
         document.getElementById('edit-modal').classList.remove('hidden');
+    }
+    // Reconcile Checkbox Logic (Auto-Save state)
+    if(e.target.type === 'checkbox') {
+        const id = e.target.dataset.id; // We need to add data-id to checkboxes in UI.js
+        // If UI.js handles the click, we don't need logic here, but for state persistence:
+        // Ideally, UI.js checkboxes should trigger a state update.
+        // Let's rely on UI.js rendering correctly and update state here if needed.
+        // Actually, let's delegate the click in UI to update state directly.
+        // See updated renderTransactions in UI.js which adds event listeners there? 
+        // Better: Handle it here via delegation.
+        if (id) {
+             const tx = state.transactions.find(t => t.id === id);
+             if(tx) {
+                 tx.reconciled = e.target.checked;
+                 state.persist(); // Auto-save on check
+             }
+        }
     }
 });
 
@@ -241,13 +260,54 @@ document.getElementById('ap-ar-save-button').addEventListener('click', () => {
     refreshApp();
 });
 
-// --- CSV Import (FIXED: Duplicate Detection) ---
+// --- Reconciliation Logic ---
+document.getElementById('start-reconcile-btn').addEventListener('click', () => {
+    const modal = document.getElementById('reconcile-modal');
+    modal.classList.remove('hidden');
+    
+    // Calculate total of CHECKED items
+    const clearedTotal = state.transactions
+        .filter(t => t.type === 'transaction' && t.reconciled)
+        .reduce((sum, t) => sum + t.amount, 0);
+        
+    document.getElementById('recon-calc-balance').textContent = formatCurrency(clearedTotal);
+    document.getElementById('recon-bank-balance').value = '';
+    document.getElementById('recon-difference').textContent = '$0.00';
+    document.getElementById('recon-success-msg').classList.add('hidden');
+    document.getElementById('recon-error-msg').classList.add('hidden');
+});
+
+document.getElementById('recon-bank-balance').addEventListener('input', (e) => {
+    const bankBal = parseFloat(e.target.value) || 0;
+    const clearedTotal = state.transactions
+        .filter(t => t.type === 'transaction' && t.reconciled)
+        .reduce((sum, t) => sum + t.amount, 0);
+        
+    const diff = bankBal - clearedTotal;
+    const diffEl = document.getElementById('recon-difference');
+    diffEl.textContent = formatCurrency(diff);
+    
+    if(Math.abs(diff) < 0.01) {
+        diffEl.className = "text-green-600 font-bold";
+        document.getElementById('recon-success-msg').classList.remove('hidden');
+        document.getElementById('recon-error-msg').classList.add('hidden');
+    } else {
+        diffEl.className = "text-red-600 font-bold";
+        document.getElementById('recon-success-msg').classList.add('hidden');
+        document.getElementById('recon-error-msg').classList.remove('hidden');
+    }
+});
+
+document.getElementById('close-recon-btn').addEventListener('click', () => {
+    document.getElementById('reconcile-modal').classList.add('hidden');
+});
+
+
+// --- CSV Import ---
 document.getElementById('csv-file').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if(!file) return;
     
-    // 1. Create a "Set" of existing transactions to check against
-    // We create a unique signature: Date + Description + Amount
     const existingSignatures = new Set(
         state.transactions.map(t => `${t.date}-${t.description}-${t.amount}`)
     );
@@ -265,15 +325,13 @@ document.getElementById('csv-file').addEventListener('change', (e) => {
                 if(row['Debit'] && row['Debit'] !== '') amt = -Math.abs(parseFloat(row['Debit']));
                 if(row['Credit'] && row['Credit'] !== '') amt = Math.abs(parseFloat(row['Credit']));
                 
-                // Format the signature to check for duplicates
                 const cleanDate = typeof date === 'string' ? date : new Date().toISOString();
                 const cleanAmt = parseFloat(amt) || 0;
                 const signature = `${cleanDate}-${desc}-${cleanAmt}`;
 
-                // Check if it already exists
                 if (existingSignatures.has(signature)) {
                     duplicatesCount++;
-                    return null; // Skip this one
+                    return null;
                 }
 
                 return {
@@ -285,7 +343,7 @@ document.getElementById('csv-file').addEventListener('change', (e) => {
                     type: 'transaction',
                     reconciled: false
                 };
-            }).filter(Boolean); // Remove the nulls (duplicates)
+            }).filter(Boolean);
 
             if (newTxs.length > 0) {
                 state.addTransactions(newTxs);
