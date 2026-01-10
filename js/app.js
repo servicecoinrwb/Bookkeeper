@@ -1,8 +1,8 @@
 // js/app.js
 import { auth, loginUser, logoutUser, loadUserData, saveUserData } from "./firebase-service.js";
 import { state } from "./state.js";
-import * as UI from "./ui.js";
-import { showToast, exportToIIF, formatCurrency } from "./utils.js"; // Added formatCurrency import
+import * as UI from "./ui.js"; // This imports ALL the functions we just exported
+import { showToast, exportToIIF } from "./utils.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
 // Init
@@ -362,3 +362,4 @@ document.getElementById('logout-btn').addEventListener('click', () => { logoutUs
 
 // Start
 init();
+
