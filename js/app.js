@@ -7,28 +7,51 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/fi
 
 // Init
 const init = async () => {
+    // 1. Show the App UI immediately (Optimistic Load)
+    // Don't wait for Firebase to start rendering
+    document.getElementById('auth-loading').classList.remove('hidden'); 
+    
+    // Check local storage immediately
+    const local = localStorage.getItem('bookkeeperSession');
+    if(local) {
+        try {
+            state.transactions = JSON.parse(local);
+            // If we have local data, show the dashboard instantly
+            if(state.transactions.length > 0) {
+                document.getElementById('upload-section').classList.add('hidden');
+                document.getElementById('data-section').classList.remove('hidden');
+                refreshApp(); 
+            }
+        } catch(e) { console.error("Local data corrupted", e); }
+    } else {
+        // If no data, show upload screen instantly
+        document.getElementById('upload-section').classList.remove('hidden');
+        document.getElementById('login-btn').classList.remove('hidden');
+    }
+
+    // 2. Listen for Firebase (Runs in background)
     onAuthStateChanged(auth, async (user) => {
+        document.getElementById('auth-loading').classList.add('hidden');
+        
         if (user) {
+            // User confirmed logged in
             state.currentUser = user;
             document.getElementById('user-info').classList.remove('hidden');
             document.getElementById('user-name').textContent = user.displayName;
             document.getElementById('user-avatar').src = user.photoURL;
             document.getElementById('login-btn').classList.add('hidden');
             
+            // NOW fetch the latest cloud data
             const cloudData = await loadUserData(user.uid);
             if(cloudData) {
                 state.setData(cloudData);
-                refreshApp();
+                refreshApp(); // Update UI with cloud data
             }
         } else {
+            // User confirmed logged out
             state.currentUser = null;
             document.getElementById('user-info').classList.add('hidden');
             document.getElementById('login-btn').classList.remove('hidden');
-            const local = localStorage.getItem('bookkeeperSession');
-            if(local) {
-                state.transactions = JSON.parse(local);
-            }
-            refreshApp(); // Refresh regardless to show empty state/filters
         }
     });
 };
@@ -280,3 +303,4 @@ document.getElementById('logout-btn').addEventListener('click', () => { logoutUs
 
 // Start
 init();
+
