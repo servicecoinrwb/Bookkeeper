@@ -49,18 +49,22 @@
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                                 Service Q
                             </a>
+
                             <a href="https://servicecoinrwb.github.io/invoice-generator/" target="_blank" class="flex items-center gap-1 text-purple-700 hover:text-purple-900 text-xs font-bold bg-purple-50 px-2 py-1 rounded border border-purple-100 transition-colors">
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                 Invoice Gen
                             </a>
+
                             <a href="https://servicecoinrwb.github.io/HVAC-Receipt-Tracker/" target="_blank" class="flex items-center gap-1 text-emerald-700 hover:text-emerald-900 text-xs font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-100 transition-colors">
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                 Receipt
                             </a>
+
                             <a href="https://www.communitychoicecu.com/" target="_blank" class="flex items-center gap-1 text-emerald-700 hover:text-emerald-900 text-xs font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-100 transition-colors">
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"></path></svg>
                                 Bank
                             </a>
+
                             <a href="https://accounts.intuit.com/app/account-manager/overview" target="_blank" class="text-gray-500 hover:text-indigo-600 text-xs">Intuit</a>
                         </div>
                     </div>
@@ -137,26 +141,40 @@
                             </div>
                         </div>
 
+                        <div id="quickbooks-inputs" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
+                            <div>
+                                <label for="bank-account" class="block text-sm font-medium text-gray-700">QuickBooks Bank Account</label>
+                                <input type="text" id="bank-account" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm" placeholder="e.g., Checking">
+                            </div>
+                            <div>
+                                <label for="default-expense-account" class="block text-sm font-medium text-gray-700">Default Expense Account</label>
+                                <input type="text" id="default-expense-account" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm" placeholder="e.g., Uncategorized Expense">
+                            </div>
+                        </div>
+
                         <div id="action-buttons-container" class="flex flex-wrap items-center gap-4 mb-4">
-                            <button id="export-button" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-700">Export to QuickBooks (.iif)</button>
-                            <button id="add-category-button" class="bg-gray-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-gray-700">Manage Categories</button>
-                            <button id="rules-button" class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-purple-700">Categorization Rules</button>
-                            <button id="save-session-button" class="bg-green-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-green-700">Save Session</button>
-                            <button id="clear-session-button" class="bg-red-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-red-700">Clear Data</button>
+                            <button id="export-button" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Export to QuickBooks (.iif)</button>
+                            <button id="add-category-button" class="bg-gray-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors">Manage Categories</button>
+                            <button id="rules-button" class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors">Categorization Rules</button>
+                            <button id="save-session-button" class="bg-green-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">Save Session</button>
+                            <button id="clear-session-button" class="bg-red-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">Clear Data</button>
                             <div id="date-filter-container" class="ml-auto flex gap-2">
-                                <select id="year-filter" class="block w-full md:w-auto rounded-md border-gray-300 shadow-sm sm:text-sm"></select>
-                                <select id="month-filter" class="block w-full md:w-auto rounded-md border-gray-300 shadow-sm sm:text-sm"></select>
+                                <select id="year-filter" class="block w-full md:w-auto rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select>
+                                <select id="month-filter" class="block w-full md:w-auto rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select>
                             </div>
                         </div>
 
                         <div id="view-transactions">
                             <div class="mb-4 flex flex-wrap items-center gap-4">
-                                <button id="import-more-transactions-button" class="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-200 text-sm font-semibold">Import More Transactions</button>
-                                <button id="start-reconcile-btn" class="bg-teal-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-teal-700 text-sm font-semibold">
+                                <button id="import-more-transactions-button" class="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 text-sm font-semibold">Import More Transactions</button>
+                                <button id="start-reconcile-btn" class="bg-teal-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 text-sm font-semibold">
                                     ⚖️ Reconcile
                                 </button>
                                 <div class="relative flex-grow md:flex-grow-0 md:w-64">
-                                    <input type="text" id="transaction-search" class="block w-full pl-3 rounded-md border-gray-300 shadow-sm sm:text-sm" placeholder="Search Transactions...">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                                    </div>
+                                    <input type="text" id="transaction-search" class="block w-full pl-10 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Search Transactions...">
                                 </div>
                             </div>
                             <div class="overflow-x-auto table-scrollbar">
@@ -165,7 +183,7 @@
                                         <tr>
                                             <th class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
                                                 <div class="flex items-center gap-1">
-                                                    <input type="checkbox" id="select-all-rec" class="h-4 w-4 text-indigo-600 border-gray-300 rounded">
+                                                    <input type="checkbox" id="select-all-rec" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer">
                                                     <span>Rec</span>
                                                 </div>
                                             </th>
@@ -200,18 +218,21 @@
 
                         <div id="view-ar" class="hidden">
                             <div class="flex flex-wrap items-center gap-4 mb-4">
-                                <button id="add-invoice-button" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700">Add New Invoice</button>
-                                <label for="invoice-csv-file" class="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg shadow-sm hover:bg-blue-200 cursor-pointer">Import Invoice CSV</label>
+                                <button id="add-invoice-button" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Add New Invoice</button>
+                                <label for="invoice-csv-file" class="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg shadow-sm hover:bg-blue-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Import Invoice CSV</label>
                                 <input type="file" id="invoice-csv-file" class="hidden" accept=".csv">
                                 <div class="w-32">
-                                    <select id="ar-status-filter" class="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm">
-                                        <option value="all">All</option>
+                                    <select id="ar-status-filter" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                        <option value="all">All Status</option>
                                         <option value="unpaid">Unpaid</option>
                                         <option value="paid">Paid</option>
                                     </select>
                                 </div>
                                 <div class="relative ml-auto w-full md:w-64">
-                                    <input type="text" id="ar-search" class="block w-full pl-3 rounded-md border-gray-300 shadow-sm sm:text-sm" placeholder="Search...">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                                    </div>
+                                    <input type="text" id="ar-search" class="block w-full pl-10 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Search Customers...">
                                 </div>
                             </div>
                             <div class="overflow-x-auto table-scrollbar">
@@ -233,9 +254,12 @@
 
                         <div id="view-ap" class="hidden">
                             <div class="flex flex-wrap items-center gap-4 mb-4">
-                                <button id="add-bill-button" class="bg-orange-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-orange-700">Add New Bill</button>
+                                <button id="add-bill-button" class="bg-orange-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">Add New Bill</button>
                                 <div class="relative ml-auto w-full md:w-64">
-                                    <input type="text" id="ap-search" class="block w-full pl-3 rounded-md border-gray-300 shadow-sm sm:text-sm" placeholder="Search Vendors...">
+                                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
+                                    </div>
+                                    <input type="text" id="ap-search" class="block w-full pl-10 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Search Vendors...">
                                 </div>
                             </div>
                             <div class="overflow-x-auto table-scrollbar">
@@ -333,16 +357,24 @@
             <input type="hidden" id="modal-transaction-id">
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700">Category</label>
-                <select id="modal-category" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm py-2"></select>
+                <div class="searchable-dropdown relative">
+                    <input type="text" id="modal-category-search" class="mt-1 block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" autocomplete="off" placeholder="Search or Select...">
+                    <div id="modal-category-dropdown" class="dropdown-menu hidden absolute bg-white border border-gray-300 rounded-b-md w-full z-10 max-h-48 overflow-y-auto"></div>
+                    <input type="hidden" id="modal-category">
+                </div>
             </div>
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700">Job/Customer Name</label>
-                <input type="text" id="modal-job" list="job-list" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                <input type="text" id="modal-job" list="job-list" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                 <datalist id="job-list"></datalist>
             </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700">Notes</label>
+                <textarea id="modal-notes" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+            </div>
             <div class="flex justify-end gap-2">
-                <button id="cancel-button" class="border px-4 py-2 rounded">Cancel</button>
-                <button id="save-button" class="bg-indigo-600 text-white px-4 py-2 rounded">Save</button>
+                <button id="cancel-button" class="border border-gray-300 px-4 py-2 rounded text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button id="save-button" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Save</button>
             </div>
         </div>
     </div>
@@ -351,12 +383,12 @@
         <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-lg m-4 transform scale-95 p-6">
             <h3 class="text-lg font-medium mb-4">Manage Categories</h3>
             <div class="flex gap-4 mb-4">
-                <input type="text" id="new-category-name" placeholder="New category name" class="flex-grow rounded-md border-gray-300 shadow-sm">
-                <button id="add-new-category-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg">Add</button>
+                <input type="text" id="new-category-name" placeholder="New category name" class="flex-grow rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                <button id="add-new-category-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">Add</button>
             </div>
             <div id="category-list" class="max-h-60 overflow-y-auto pr-2 border-t pt-2"></div>
             <div class="mt-4 flex justify-end">
-                <button id="close-category-modal" class="border px-4 py-2 rounded">Done</button>
+                <button id="close-category-modal" class="border border-gray-300 px-4 py-2 rounded text-gray-700 hover:bg-gray-50">Done</button>
             </div>
         </div>
     </div>
@@ -364,20 +396,20 @@
     <div id="rules-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop bg-black bg-opacity-50">
         <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-2xl m-4 transform scale-95 p-6">
             <h3 class="text-lg font-medium mb-4">Categorization Rules</h3>
-            <div class="grid grid-cols-3 gap-4 mb-4 items-end bg-gray-50 p-4 rounded">
+            <div class="grid grid-cols-3 gap-4 mb-4 items-end bg-gray-50 p-4 rounded border border-gray-200">
                 <div>
-                    <label class="block text-sm font-medium">If contains:</label>
-                    <input type="text" id="rule-keyword" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                    <label class="block text-sm font-medium text-gray-700">If contains:</label>
+                    <input type="text" id="rule-keyword" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                 </div>
                 <div>
-                    <label class="block text-sm font-medium">Set category to:</label>
-                    <select id="rule-category" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></select>
+                    <label class="block text-sm font-medium text-gray-700">Set category to:</label>
+                    <select id="rule-category" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select>
                 </div>
-                <button id="add-rule-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg">Add Rule</button>
+                <button id="add-rule-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">Add Rule</button>
             </div>
             <div id="rules-list" class="max-h-60 overflow-y-auto pr-2"></div>
             <div class="mt-4 flex justify-end">
-                <button id="close-rules-modal" class="border px-4 py-2 rounded">Done</button>
+                <button id="close-rules-modal" class="border border-gray-300 px-4 py-2 rounded text-gray-700 hover:bg-gray-50">Done</button>
             </div>
         </div>
     </div>
@@ -387,16 +419,16 @@
             <h3 id="ap-ar-modal-title" class="text-lg font-medium mb-4">Add Item</h3>
             <input type="hidden" id="ap-ar-id"><input type="hidden" id="ap-ar-type">
             <div class="space-y-4">
-                <div><label id="ap-ar-party-label" class="block text-sm font-medium">Vendor</label><input type="text" id="ap-ar-party" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></div>
-                <div><label class="block text-sm font-medium">Bill/Invoice #</label><input type="text" id="ap-ar-number" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></div>
+                <div><label id="ap-ar-party-label" class="block text-sm font-medium text-gray-700">Vendor</label><input type="text" id="ap-ar-party" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></div>
+                <div><label class="block text-sm font-medium text-gray-700">Bill/Invoice #</label><input type="text" id="ap-ar-number" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></div>
                 <div class="grid grid-cols-2 gap-4">
-                    <div><label class="block text-sm font-medium">Date</label><input type="date" id="ap-ar-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></div>
-                    <div><label class="block text-sm font-medium">Amount</label><input type="number" id="ap-ar-amount" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" step="0.01"></div>
+                    <div><label class="block text-sm font-medium text-gray-700">Date</label><input type="date" id="ap-ar-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></div>
+                    <div><label class="block text-sm font-medium text-gray-700">Amount</label><input type="number" id="ap-ar-amount" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" step="0.01"></div>
                 </div>
             </div>
             <div class="mt-6 flex justify-end gap-2">
-                <button id="ap-ar-cancel-button" class="border px-4 py-2 rounded">Cancel</button>
-                <button id="ap-ar-save-button" class="bg-indigo-600 text-white px-4 py-2 rounded">Save</button>
+                <button id="ap-ar-cancel-button" class="border border-gray-300 px-4 py-2 rounded text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button id="ap-ar-save-button" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Save</button>
             </div>
         </div>
     </div>
@@ -412,7 +444,7 @@
                 </div>
                 <div class="flex justify-between items-center gap-2">
                     <label for="recon-bank-balance" class="text-sm font-medium text-gray-900 whitespace-nowrap">Statement Balance:</label>
-                    <input type="number" id="recon-bank-balance" placeholder="0.00" step="0.01" class="w-32 text-right rounded-md border-gray-300 shadow-sm">
+                    <input type="number" id="recon-bank-balance" placeholder="0.00" step="0.01" class="w-32 text-right rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                 </div>
                 <div class="border-t border-gray-300 my-2"></div>
                 <div class="flex justify-between text-lg font-bold items-center">
@@ -433,8 +465,8 @@
             <h3 class="text-lg font-medium text-red-600 mb-2">Clear Session Data?</h3>
             <p class="text-sm text-gray-500 mb-4">This cannot be undone.</p>
             <div class="flex justify-end gap-2">
-                <button id="cancel-delete-button" class="border px-4 py-2 rounded">Cancel</button>
-                <button id="confirm-delete-button" class="bg-red-600 text-white px-4 py-2 rounded">Delete</button>
+                <button id="cancel-delete-button" class="border border-gray-300 px-4 py-2 rounded text-gray-700 hover:bg-gray-50">Cancel</button>
+                <button id="confirm-delete-button" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Delete</button>
             </div>
         </div>
     </div>
@@ -444,8 +476,8 @@
             <h3 class="text-lg font-medium mb-2">Batch Update</h3>
             <p id="batch-update-body" class="text-sm text-gray-500 mb-4"></p>
             <div class="flex justify-end gap-2">
-                <button id="batch-update-cancel-button" class="border px-4 py-2 rounded">No</button>
-                <button id="batch-update-confirm-button" class="bg-indigo-600 text-white px-4 py-2 rounded">Yes, Update All</button>
+                <button id="batch-update-cancel-button" class="border border-gray-300 px-4 py-2 rounded text-gray-700 hover:bg-gray-50">No</button>
+                <button id="batch-update-confirm-button" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Yes, Update All</button>
             </div>
         </div>
     </div>
