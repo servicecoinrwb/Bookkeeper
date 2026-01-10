@@ -1,7 +1,8 @@
 // js/firebase-service.js
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
+// Using esm.sh which provides a single bundled file for faster loading
+import { initializeApp } from "https://esm.sh/firebase@11.0.2/app";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://esm.sh/firebase@11.0.2/auth";
+import { getFirestore, doc, getDoc, setDoc } from "https://esm.sh/firebase@11.0.2/firestore";
 import { FIREBASE_CONFIG } from "./config.js";
 
 const app = initializeApp(FIREBASE_CONFIG);
@@ -43,3 +44,4 @@ export const loadUserData = async (uid) => {
     }
     return null;
 };
+
