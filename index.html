@@ -5,47 +5,81 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bookkeeper Pro</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+    
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = { theme: { extend: { colors: { clifford: '#da373d' } } } }
+    </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
     <link rel="stylesheet" href="styles.css">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
 </head>
 <body class="antialiased text-gray-800">
 
     <div id="app" class="min-h-screen p-4 sm:p-6 lg:p-8">
         <div class="max-w-7xl mx-auto">
+
             <header class="mb-8">
                 <div class="flex flex-wrap justify-between items-center gap-4">
                     <div>
                         <h1 class="text-3xl font-bold text-gray-900">Bookkeeper Pro</h1>
                         <p class="text-gray-500 mt-1">Cloud-enabled Accounting Tool</p>
                     </div>
+                    
                     <div class="flex items-center gap-3">
-                        <button id="login-btn" class="hidden flex items-center gap-2 bg-white border border-gray-300 px-4 py-2 rounded-lg shadow-sm font-semibold text-sm">Sign In with Google</button>
-                        <div id="user-info" class="hidden flex items-center gap-3 bg-white border px-3 py-1.5 rounded-full shadow-sm">
-                            <img id="user-avatar" src="" class="w-6 h-6 rounded-full">
-                            <span id="user-name" class="text-sm font-medium truncate max-w-[150px]"></span>
-                            <button id="logout-btn" class="text-xs text-red-600 font-semibold ml-2">Sign Out</button>
+                        <div id="auth-loading" class="hidden">
+                            <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-6 w-6"></div>
+                        </div>
+
+                        <button id="login-btn" class="hidden flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 text-sm font-semibold">
+                            Sign In with Google
+                        </button>
+
+                        <div id="user-info" class="hidden flex items-center gap-3 bg-white border border-gray-200 px-3 py-1.5 rounded-full shadow-sm">
+                            <img id="user-avatar" src="" alt="User" class="w-6 h-6 rounded-full">
+                            <span id="user-name" class="text-sm font-medium text-gray-700 truncate max-w-[150px]"></span>
+                            <button id="logout-btn" class="text-xs text-red-600 hover:text-red-800 font-semibold ml-2">Sign Out</button>
+                        </div>
+
+                        <div class="hidden md:flex items-center gap-3 border-l pl-4 border-gray-300">
+                            <a href="https://www.appsheet.com/start/90811d78-1165-4542-bbaa-af393ca455a5?platform=desktop#appName=SVC-QApp-721685306&view=Jobs" target="_blank" class="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100">
+                                Service App
+                            </a>
+                            <a href="https://servicecoinrwb.github.io/invoice-generator/" target="_blank" class="flex items-center gap-1 text-purple-700 hover:text-purple-900 text-xs font-bold bg-purple-50 px-2 py-1 rounded border border-purple-100">
+                                Invoice Gen
+                            </a>
+                            <a href="https://www.communitychoicecu.com/" target="_blank" class="flex items-center gap-1 text-emerald-700 hover:text-emerald-900 text-xs font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-100">
+                                Bank
+                            </a>
+                            <a href="https://accounts.intuit.com/app/account-manager/overview" target="_blank" class="text-gray-500 hover:text-indigo-600 text-xs">Intuit</a>
                         </div>
                     </div>
                 </div>
             </header>
 
             <main>
+                <div id="cloud-status" class="hidden mb-4 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
+                    <svg class="animate-spin h-4 w-4 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    Syncing...
+                </div>
+
                 <div id="upload-section" class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                     <h2 class="text-xl font-semibold mb-4">Step 1: Import Transactions</h2>
                     <div class="flex items-center justify-center w-full">
-                        <label class="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
+                        <label for="csv-file" class="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100">
                             <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                                <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">Click to upload CSV</span></p>
+                                <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">Click to upload</span> or drag and drop</p>
                             </div>
                             <input id="csv-file" type="file" class="hidden" accept=".csv" />
                         </label>
                     </div>
+                    <div id="file-info" class="mt-4 text-sm text-gray-600"></div>
                 </div>
 
                 <div id="data-section" class="hidden mt-8">
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
                         <div class="bg-green-50 border-l-4 border-green-500 text-green-800 p-4 rounded-lg shadow-sm">
                             <div class="text-sm font-medium">INCOME</div>
                             <div id="total-income" class="text-2xl font-bold">$0.00</div>
@@ -58,53 +92,76 @@
                             <div class="text-sm font-medium">NET</div>
                             <div id="net-total" class="text-2xl font-bold">$0.00</div>
                         </div>
+                        <div id="ar-card" class="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-lg shadow-sm">
+                            <div class="text-sm font-medium">A/R (OWED) <span id="ar-past-due-warning" class="hidden text-xs font-bold ml-2">(PAST DUE)</span></div>
+                            <div id="total-ar" class="text-2xl font-bold">$0.00</div>
+                        </div>
+                        <div class="bg-orange-50 border-l-4 border-orange-500 text-orange-800 p-4 rounded-lg shadow-sm">
+                            <div class="text-sm font-medium">A/P (OWE)</div>
+                            <div id="total-ap" class="text-2xl font-bold">$0.00</div>
+                        </div>
                         <div class="bg-purple-50 border-l-4 border-purple-500 text-purple-800 p-4 rounded-lg shadow-sm">
                             <div class="text-sm font-medium">OWNER'S PAY</div>
                             <div id="total-draws" class="text-2xl font-bold">$0.00</div>
                         </div>
-                        <div id="ar-card" class="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-lg shadow-sm">
-                            <div class="text-sm font-medium">A/R (OWED)</div>
-                            <div id="total-ar" class="text-2xl font-bold">$0.00</div>
+                    </div>
+
+                    <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
+                        <div class="flex flex-col md:flex-row justify-between md:items-center mb-4">
+                            <h2 class="text-xl font-semibold">Step 2: Process Transactions</h2>
+                            <div class="mt-4 md:mt-0 border-b border-gray-200">
+                                <nav class="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
+                                    <button id="tab-transactions" class="border-indigo-500 text-indigo-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Transactions</button>
+                                    <button id="tab-jobs" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Job Profitability</button>
+                                    <button id="tab-ar" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/R (Invoices)</button>
+                                    <button id="tab-ap" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/P (Bills)</button>
+                                    <button id="tab-reports" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Reports</button>
+                                    <button id="tab-taxes" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Taxes</button>
+                                    <button id="tab-guide" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Guide</button>
+                                </nav>
+                            </div>
                         </div>
-                    </div>
 
-                    <div class="mb-6 border-b border-gray-200 overflow-x-auto">
-                        <nav class="flex space-x-6" aria-label="Tabs">
-                            <button id="tab-transactions" class="tab-btn border-indigo-500 text-indigo-600 border-b-2 font-medium text-sm py-2 px-1 whitespace-nowrap">Transactions</button>
-                            <button id="tab-jobs" class="tab-btn border-transparent text-gray-500 border-b-2 font-medium text-sm py-2 px-1 whitespace-nowrap">Job Profitability</button>
-                            <button id="tab-ar" class="tab-btn border-transparent text-gray-500 border-b-2 font-medium text-sm py-2 px-1 whitespace-nowrap">A/R (Invoices)</button>
-                            <button id="tab-ap" class="tab-btn border-transparent text-gray-500 border-b-2 font-medium text-sm py-2 px-1 whitespace-nowrap">A/P (Bills)</button>
-                            <button id="tab-reports" class="tab-btn border-transparent text-gray-500 border-b-2 font-medium text-sm py-2 px-1 whitespace-nowrap">Reports</button>
-                            <button id="tab-taxes" class="tab-btn border-transparent text-gray-500 border-b-2 font-medium text-sm py-2 px-1 whitespace-nowrap">Taxes</button>
-                            <button id="tab-guide" class="tab-btn border-transparent text-gray-500 border-b-2 font-medium text-sm py-2 px-1 whitespace-nowrap">Guide</button>
-                        </nav>
-                    </div>
-
-                    <div class="flex flex-wrap items-center gap-3 mb-4">
-                        <button id="export-button" class="bg-indigo-600 text-white px-3 py-2 rounded shadow text-sm">Export to QB (.iif)</button>
-                        <button id="manage-categories-btn" class="bg-gray-600 text-white px-3 py-2 rounded shadow text-sm">Categories</button>
-                        <button id="manage-rules-btn" class="bg-purple-600 text-white px-3 py-2 rounded shadow text-sm">Rules</button>
-                        <button id="save-session-btn" class="bg-green-600 text-white px-3 py-2 rounded shadow text-sm">Save</button>
-                        <button id="clear-session-btn" class="bg-red-600 text-white px-3 py-2 rounded shadow text-sm">Clear</button>
-                        
-                        <div class="ml-auto flex gap-2">
-                             <select id="year-filter" class="rounded border-gray-300 text-sm"></select>
-                             <select id="month-filter" class="rounded border-gray-300 text-sm"></select>
+                        <div id="quickbooks-inputs" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
+                            <div>
+                                <label for="bank-account" class="block text-sm font-medium text-gray-700">QuickBooks Bank Account</label>
+                                <input type="text" id="bank-account" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm" placeholder="e.g., Checking">
+                            </div>
+                            <div>
+                                <label for="default-expense-account" class="block text-sm font-medium text-gray-700">Default Expense Account</label>
+                                <input type="text" id="default-expense-account" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm" placeholder="e.g., Uncategorized Expense">
+                            </div>
                         </div>
-                    </div>
 
-                    <div id="view-container">
+                        <div id="action-buttons-container" class="flex flex-wrap items-center gap-4 mb-4">
+                            <button id="export-button" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-700">Export to QuickBooks (.iif)</button>
+                            <button id="add-category-button" class="bg-gray-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-gray-700">Manage Categories</button>
+                            <button id="rules-button" class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-purple-700">Categorization Rules</button>
+                            <button id="save-session-button" class="bg-green-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-green-700">Save Session</button>
+                            <button id="clear-session-button" class="bg-red-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-red-700">Clear Data</button>
+                            <div id="date-filter-container" class="ml-auto flex gap-2">
+                                <select id="year-filter" class="block w-full md:w-auto rounded-md border-gray-300 shadow-sm"></select>
+                                <select id="month-filter" class="block w-full md:w-auto rounded-md border-gray-300 shadow-sm"></select>
+                            </div>
+                        </div>
+
                         <div id="view-transactions">
-                            <div class="overflow-x-auto table-scrollbar rounded-lg shadow border border-gray-200">
+                            <div class="mb-4 flex flex-wrap items-center gap-4">
+                               <button id="import-more-transactions-button" class="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-200 font-semibold text-sm">Import More</button>
+                                <div class="relative flex-grow md:flex-grow-0 md:w-64">
+                                    <input type="text" id="transaction-search" class="block w-full pl-3 rounded-md border-gray-300 shadow-sm sm:text-sm" placeholder="Search Transactions...">
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto table-scrollbar">
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
                                         <tr>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Rec</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Date</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Description</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Amount</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Category</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Job</th>
+                                            <th class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">Rec</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Job</th>
                                             <th class="px-6 py-3"></th>
                                         </tr>
                                     </thead>
@@ -114,14 +171,14 @@
                         </div>
 
                         <div id="view-jobs" class="hidden">
-                            <div class="overflow-x-auto table-scrollbar rounded-lg shadow border border-gray-200">
+                            <div class="overflow-x-auto table-scrollbar">
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
                                         <tr>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Job Name</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Income</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Expense</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Profit</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Job/Customer</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Income</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expenses</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Net Profit</th>
                                         </tr>
                                     </thead>
                                     <tbody id="job-table" class="bg-white divide-y divide-gray-200"></tbody>
@@ -130,16 +187,30 @@
                         </div>
 
                         <div id="view-ar" class="hidden">
-                            <button id="add-invoice-btn" class="mb-4 bg-blue-600 text-white px-4 py-2 rounded shadow text-sm">Add Invoice</button>
-                            <div class="overflow-x-auto table-scrollbar rounded-lg shadow border border-gray-200">
+                            <div class="flex flex-wrap items-center gap-4 mb-4">
+                                <button id="add-invoice-button" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700">Add Invoice</button>
+                                <label for="invoice-csv-file" class="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg shadow-sm hover:bg-blue-200 cursor-pointer">Import Invoice CSV</label>
+                                <input type="file" id="invoice-csv-file" class="hidden" accept=".csv">
+                                <div class="w-32">
+                                    <select id="ar-status-filter" class="block w-full rounded-md border-gray-300 shadow-sm sm:text-sm">
+                                        <option value="all">All</option>
+                                        <option value="unpaid">Unpaid</option>
+                                        <option value="paid">Paid</option>
+                                    </select>
+                                </div>
+                                <div class="relative ml-auto w-full md:w-64">
+                                    <input type="text" id="ar-search" class="block w-full pl-3 rounded-md border-gray-300 shadow-sm sm:text-sm" placeholder="Search...">
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto table-scrollbar">
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
                                         <tr>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Customer</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Inv #</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Date</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Amount</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inv #</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                             <th class="px-6 py-3"></th>
                                         </tr>
                                     </thead>
@@ -149,16 +220,21 @@
                         </div>
 
                         <div id="view-ap" class="hidden">
-                            <button id="add-bill-btn" class="mb-4 bg-orange-600 text-white px-4 py-2 rounded shadow text-sm">Add Bill</button>
-                            <div class="overflow-x-auto table-scrollbar rounded-lg shadow border border-gray-200">
+                            <div class="flex flex-wrap items-center gap-4 mb-4">
+                                <button id="add-bill-button" class="bg-orange-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-orange-700">Add Bill</button>
+                                <div class="relative ml-auto w-full md:w-64">
+                                    <input type="text" id="ap-search" class="block w-full pl-3 rounded-md border-gray-300 shadow-sm sm:text-sm" placeholder="Search Vendors...">
+                                </div>
+                            </div>
+                            <div class="overflow-x-auto table-scrollbar">
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
                                         <tr>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Vendor</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Bill #</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Date</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Amount</th>
-                                            <th class="px-6 py-3 text-xs font-medium text-gray-500 uppercase">Status</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Vendor</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Bill #</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                                             <th class="px-6 py-3"></th>
                                         </tr>
                                     </thead>
@@ -167,71 +243,174 @@
                             </div>
                         </div>
 
-                        <div id="view-reports" class="hidden prose max-w-none"><div id="report-content"></div></div>
+                        <div id="view-reports" class="hidden">
+                            <div class="mb-4 border-b border-gray-200">
+                                <nav class="-mb-px flex space-x-8 overflow-x-auto">
+                                    <button id="report-tab-pl" class="border-indigo-500 text-indigo-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Profit & Loss</button>
+                                    <button id="report-tab-vendors" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Vendor Expenses</button>
+                                    <button id="report-tab-ar-aging" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/R Aging</button>
+                                    <button id="report-tab-ap-aging" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/P Aging</button>
+                                </nav>
+                            </div>
+                            <div id="report-pl-content" class="prose max-w-none prose-indigo"></div>
+                            <div id="report-vendors-content" class="hidden prose max-w-none prose-indigo"></div>
+                            <div id="report-ar-aging-content" class="hidden prose max-w-none prose-indigo"></div>
+                            <div id="report-ap-aging-content" class="hidden prose max-w-none prose-indigo"></div>
+                        </div>
+
                         <div id="view-taxes" class="hidden">
-                            <div class="bg-indigo-50 p-4 rounded mb-4">
-                                <h3 class="text-lg font-bold text-indigo-900">Tax Estimate</h3>
-                                <p>Net Profit: <span id="tax-net-profit" class="font-bold">$0.00</span></p>
-                                <p>Est. Taxes (25%): <span id="tax-total-due" class="font-bold text-red-600">$0.00</span></p>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                                <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg">
+                                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Tax Settings</h3>
+                                    <div class="flex items-center justify-between">
+                                        <label for="tax-rate-input" class="text-sm font-medium text-gray-700">Estimated Tax Rate (%)</label>
+                                        <input type="number" id="tax-rate-input" value="30" class="w-20 rounded-md border-gray-300 shadow-sm text-right">
+                                    </div>
+                                </div>
+                                <div class="bg-indigo-50 border border-indigo-100 p-4 rounded-lg">
+                                    <h3 class="text-lg font-semibold text-indigo-900 mb-2">Current Liability</h3>
+                                    <div class="flex justify-between text-sm mb-1">
+                                        <span class="text-indigo-700">Net Profit:</span>
+                                        <span id="tax-net-profit" class="font-bold">$0.00</span>
+                                    </div>
+                                    <div class="flex justify-between text-lg font-bold border-t border-indigo-200 pt-2 mt-2">
+                                        <span class="text-indigo-900">Est. Taxes Due:</span>
+                                        <span id="tax-total-due" class="text-indigo-600">$0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <h3 class="text-lg font-semibold text-gray-900 mb-4">Quarterly Payment Estimates</h3>
+                            <div id="tax-year-warning" class="hidden bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4">
+                                <p>Please select a specific <strong>Year</strong> from the filters above.</p>
+                            </div>
+                            <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg mb-6">
+                                <table class="min-w-full divide-y divide-gray-300">
+                                    <thead class="bg-gray-50">
+                                        <tr>
+                                            <th class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Quarter</th>
+                                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Due Date</th>
+                                            <th class="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Est. Payment</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200 bg-white">
+                                        <tr><td class="py-4 pl-4 text-sm font-medium">Q1</td><td class="px-3 py-4 text-sm text-gray-500">April 15</td><td class="px-3 py-4 text-sm text-right font-medium" id="tax-q1">$0.00</td></tr>
+                                        <tr><td class="py-4 pl-4 text-sm font-medium">Q2</td><td class="px-3 py-4 text-sm text-gray-500">June 15</td><td class="px-3 py-4 text-sm text-right font-medium" id="tax-q2">$0.00</td></tr>
+                                        <tr><td class="py-4 pl-4 text-sm font-medium">Q3</td><td class="px-3 py-4 text-sm text-gray-500">Sept 15</td><td class="px-3 py-4 text-sm text-right font-medium" id="tax-q3">$0.00</td></tr>
+                                        <tr><td class="py-4 pl-4 text-sm font-medium">Q4</td><td class="px-3 py-4 text-sm text-gray-500">Jan 15</td><td class="px-3 py-4 text-sm text-right font-medium" id="tax-q4">$0.00</td></tr>
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
-                        <div id="view-guide" class="hidden prose max-w-none"><div id="guide-content"></div></div>
+
+                        <div id="view-guide" class="hidden prose max-w-none prose-indigo">
+                            <h3 class="text-xl font-semibold mb-4">HVAC Bookkeeping Guide</h3>
+                            <div class="space-y-4" id="accordion-container"></div>
+                        </div>
                     </div>
                 </div>
             </main>
         </div>
     </div>
 
-    <div id="edit-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden bg-black bg-opacity-50">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md m-4 p-6">
-            <h3 class="text-lg font-medium mb-4">Edit Transaction</h3>
-            <input type="hidden" id="modal-tx-id">
+    <div id="edit-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop bg-black bg-opacity-50">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95 p-6">
+            <h3 class="text-lg font-medium mb-2">Edit Transaction</h3>
+            <p id="modal-description" class="text-sm text-gray-600 mb-4"></p>
+            <input type="hidden" id="modal-transaction-id">
             <div class="mb-4">
-                <label class="block text-sm font-medium">Category</label>
-                <select id="modal-category" class="mt-1 block w-full rounded border-gray-300 p-2 border"></select>
+                <label class="block text-sm font-medium text-gray-700">Category</label>
+                <select id="modal-category" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm py-2"></select>
             </div>
             <div class="mb-4">
-                <label class="block text-sm font-medium">Job/Customer</label>
-                <input type="text" id="modal-job" class="mt-1 block w-full rounded border-gray-300 p-2 border">
+                <label class="block text-sm font-medium text-gray-700">Job/Customer Name</label>
+                <input type="text" id="modal-job" list="job-list" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                <datalist id="job-list"></datalist>
             </div>
             <div class="flex justify-end gap-2">
-                <button id="close-edit-modal" class="px-4 py-2 border rounded">Cancel</button>
-                <button id="save-tx-btn" class="px-4 py-2 bg-indigo-600 text-white rounded">Save</button>
+                <button id="cancel-button" class="border px-4 py-2 rounded">Cancel</button>
+                <button id="save-button" class="bg-indigo-600 text-white px-4 py-2 rounded">Save</button>
             </div>
         </div>
     </div>
 
-    <div id="apar-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden bg-black bg-opacity-50">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md m-4 p-6">
-            <h3 id="apar-title" class="text-lg font-medium mb-4">Add Item</h3>
-            <input type="hidden" id="apar-type">
-            <input type="hidden" id="apar-id">
-            <div class="grid gap-4">
-                <input type="text" id="apar-party" placeholder="Name (Customer/Vendor)" class="border p-2 rounded w-full">
-                <input type="text" id="apar-number" placeholder="Invoice/Bill #" class="border p-2 rounded w-full">
-                <input type="date" id="apar-date" class="border p-2 rounded w-full">
-                <input type="number" id="apar-amount" placeholder="Amount" class="border p-2 rounded w-full">
-            </div>
-            <div class="flex justify-end gap-2 mt-4">
-                <button id="close-apar-modal" class="px-4 py-2 border rounded">Cancel</button>
-                <button id="save-apar-btn" class="px-4 py-2 bg-blue-600 text-white rounded">Save</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="category-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden bg-black bg-opacity-50">
-        <div class="bg-white rounded-lg shadow-xl w-full max-w-md m-4 p-6">
+    <div id="category-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop bg-black bg-opacity-50">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-lg m-4 transform scale-95 p-6">
             <h3 class="text-lg font-medium mb-4">Manage Categories</h3>
-            <div class="flex gap-2 mb-4">
-                <input type="text" id="new-cat-input" placeholder="New Category Name" class="border p-2 rounded w-full">
-                <button id="add-cat-btn" class="bg-green-600 text-white px-3 py-2 rounded">Add</button>
+            <div class="flex gap-4 mb-4">
+                <input type="text" id="new-category-name" placeholder="New category name" class="flex-grow rounded-md border-gray-300 shadow-sm">
+                <button id="add-new-category-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg">Add</button>
             </div>
-            <div id="category-list" class="max-h-60 overflow-y-auto border-t pt-2"></div>
-            <button id="close-cat-modal" class="mt-4 w-full border p-2 rounded">Done</button>
+            <div id="category-list" class="max-h-60 overflow-y-auto pr-2 border-t pt-2"></div>
+            <div class="mt-4 flex justify-end">
+                <button id="close-category-modal" class="border px-4 py-2 rounded">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="rules-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop bg-black bg-opacity-50">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-2xl m-4 transform scale-95 p-6">
+            <h3 class="text-lg font-medium mb-4">Categorization Rules</h3>
+            <div class="grid grid-cols-3 gap-4 mb-4 items-end bg-gray-50 p-4 rounded">
+                <div>
+                    <label class="block text-sm font-medium">If contains:</label>
+                    <input type="text" id="rule-keyword" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium">Set category to:</label>
+                    <select id="rule-category" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></select>
+                </div>
+                <button id="add-rule-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg">Add Rule</button>
+            </div>
+            <div id="rules-list" class="max-h-60 overflow-y-auto pr-2"></div>
+            <div class="mt-4 flex justify-end">
+                <button id="close-rules-modal" class="border px-4 py-2 rounded">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="ap-ar-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop bg-black bg-opacity-50">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95 p-6">
+            <h3 id="ap-ar-modal-title" class="text-lg font-medium mb-4">Add Item</h3>
+            <input type="hidden" id="ap-ar-id"><input type="hidden" id="ap-ar-type">
+            <div class="space-y-4">
+                <div><label id="ap-ar-party-label" class="block text-sm font-medium">Vendor</label><input type="text" id="ap-ar-party" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></div>
+                <div><label class="block text-sm font-medium">Bill/Invoice #</label><input type="text" id="ap-ar-number" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div><label class="block text-sm font-medium">Date</label><input type="date" id="ap-ar-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm"></div>
+                    <div><label class="block text-sm font-medium">Amount</label><input type="number" id="ap-ar-amount" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm" step="0.01"></div>
+                </div>
+            </div>
+            <div class="mt-6 flex justify-end gap-2">
+                <button id="ap-ar-cancel-button" class="border px-4 py-2 rounded">Cancel</button>
+                <button id="ap-ar-save-button" class="bg-indigo-600 text-white px-4 py-2 rounded">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop bg-black bg-opacity-50">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95 p-6">
+            <h3 class="text-lg font-medium text-red-600 mb-2">Clear Session Data?</h3>
+            <p class="text-sm text-gray-500 mb-4">This cannot be undone.</p>
+            <div class="flex justify-end gap-2">
+                <button id="cancel-delete-button" class="border px-4 py-2 rounded">Cancel</button>
+                <button id="confirm-delete-button" class="bg-red-600 text-white px-4 py-2 rounded">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="batch-update-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop bg-black bg-opacity-50">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95 p-6">
+            <h3 class="text-lg font-medium mb-2">Batch Update</h3>
+            <p id="batch-update-body" class="text-sm text-gray-500 mb-4"></p>
+            <div class="flex justify-end gap-2">
+                <button id="batch-update-cancel-button" class="border px-4 py-2 rounded">No</button>
+                <button id="batch-update-confirm-button" class="bg-indigo-600 text-white px-4 py-2 rounded">Yes, Update All</button>
+            </div>
         </div>
     </div>
 
     <div id="toast" class="fixed top-5 right-5 bg-green-500 text-white py-2 px-4 rounded-lg shadow-md transition-transform duration-300 translate-x-[150%]"></div>
+
     <script type="module" src="js/app.js"></script>
 </body>
 </html>
