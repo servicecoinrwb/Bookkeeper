@@ -363,3 +363,7 @@ document.getElementById('logout-btn').addEventListener('click', () => { logoutUs
 // Start
 init();
 
+// At the bottom of js/app.js
+window.bookkeeperState = state;
+
+
