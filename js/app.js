@@ -1,8 +1,7 @@
-// js/app.js
 import { auth, loginUser, logoutUser, loadUserData, saveUserData } from "./firebase-service.js";
 import { state } from "./state.js";
-import * as UI from "./ui.js";
-import { showToast, exportToIIF } from "./utils.js";
+import * as UI from "./ui.js"; // This imports ALL the functions we just exported
+import { showToast, exportToIIF, formatCurrency } from "./utils.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
 // Init
@@ -108,6 +107,7 @@ document.getElementById('transaction-table').addEventListener('click', (e) => {
              if(tx) {
                  tx.reconciled = e.target.checked;
                  state.persist(); // Auto-save on check
+                 UI.renderDashboard(); // Update dashboard count
              }
         }
     }
@@ -265,7 +265,7 @@ if(startReconBtn) {
             .filter(t => t.type === 'transaction' && t.reconciled)
             .reduce((sum, t) => sum + t.amount, 0);
             
-        document.getElementById('recon-calc-balance').textContent = UI.formatCurrency ? UI.formatCurrency(clearedTotal) : "$" + clearedTotal.toFixed(2);
+        document.getElementById('recon-calc-balance').textContent = formatCurrency(clearedTotal);
         document.getElementById('recon-bank-balance').value = '';
         document.getElementById('recon-difference').textContent = '$0.00';
         document.getElementById('recon-success-msg').classList.add('hidden');
@@ -281,12 +281,17 @@ document.getElementById('recon-bank-balance').addEventListener('input', (e) => {
         
     const diff = bankBal - clearedTotal;
     const diffEl = document.getElementById('recon-difference');
-    // Using a simpler formatter if UI.formatCurrency is not available in scope here (it is not exported to window)
-    // But since we are in module, we need to import it or rely on UI to expose it.
-    // Fixed: `formatCurrency` IS imported at top of file now from utils.js (I added it).
-    // diffEl.textContent = formatCurrency(diff); 
-    // Wait, `formatCurrency` is imported from `./utils.js` on line 4, but that function was not in the previous turn's app.js imports.
-    // I added it to line 4 above.
+    diffEl.textContent = formatCurrency(diff);
+    
+    if(Math.abs(diff) < 0.01) {
+        diffEl.className = "text-green-600 font-bold";
+        document.getElementById('recon-success-msg').classList.remove('hidden');
+        document.getElementById('recon-error-msg').classList.add('hidden');
+    } else {
+        diffEl.className = "text-red-600 font-bold";
+        document.getElementById('recon-success-msg').classList.add('hidden');
+        document.getElementById('recon-error-msg').classList.remove('hidden');
+    }
 });
 
 document.getElementById('close-recon-btn').addEventListener('click', () => {
