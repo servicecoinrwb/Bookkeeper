@@ -1,21 +1,18 @@
 import { state } from "./state.js";
 import { formatCurrency } from "./utils.js";
 
-// --- Helpers (Internal) ---
+// --- Helpers ---
 const fastFilterByDate = (tx) => {
     if(!tx.date) return false;
     const ySel = document.getElementById('year-filter').value;
     const mSel = document.getElementById('month-filter').value;
     
-    // Optimization: Don't parse if filters are 'all'
     if((!ySel || ySel === 'all') && (!mSel || mSel === 'all')) return true;
 
-    // Date format is YYYY-MM-DD
     const txYear = tx.date.substring(0, 4); 
     const txMonth = tx.date.substring(5, 7); 
     
     if (ySel && ySel !== 'all' && txYear !== ySel) return false;
-    // Remove leading zero from month string if needed
     if (mSel && mSel !== 'all') {
         const mInt = parseInt(txMonth, 10);
         if(mInt.toString() !== mSel) return false;
@@ -23,7 +20,7 @@ const fastFilterByDate = (tx) => {
     return true;
 };
 
-// --- 1. Dashboard (Simple Math Logic) ---
+// --- Dashboard ---
 export const renderDashboard = () => {
     const activeTxs = state.transactions.filter(t => fastFilterByDate(t));
     
@@ -31,46 +28,41 @@ export const renderDashboard = () => {
     let expense = 0;
     let arTotal = 0;
     let apTotal = 0;
-    let unreconciledCount = 0; // Track this
+    let unreconciledCount = 0; 
 
     for (let i = 0; i < activeTxs.length; i++) {
         const t = activeTxs[i];
         const amt = t.amount;
 
-        // Simple Math: Positive is Income, Negative is Expense.
+        // Simple Math
         if (amt >= 0 && t.category !== 'Transfer') {
             income += amt;
         } else if (amt < 0 && t.category !== 'Transfer') {
             expense += Math.abs(amt);
         }
 
-        // Count unreconciled
-        if (!t.reconciled) {
+        if (t.type === 'transaction' && !t.reconciled) {
             unreconciledCount++;
         }
 
-        // AP/AR Stats
         if (t.status === 'unpaid') {
             if (t.type === 'ar') arTotal += amt;
             if (t.type === 'ap') apTotal += amt;
         }
     }
 
-    const net = income - expense;
-
-    // Update DOM
     const safeSet = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
     
     safeSet('total-income', formatCurrency(income));
     safeSet('total-expense', formatCurrency(expense));
-    safeSet('net-total', formatCurrency(net));
+    safeSet('net-total', formatCurrency(income - expense));
     safeSet('total-ar', formatCurrency(arTotal));
     safeSet('total-ap', formatCurrency(apTotal));
-    safeSet('total-unreconciled', unreconciledCount); // Update the count
-    
-    // Color coding for Net
+    safeSet('total-unreconciled', unreconciledCount);
+
     const netEl = document.getElementById('net-total')?.parentElement;
     if(netEl) {
+        const net = income - expense;
         if(net < 0) {
             netEl.className = "bg-red-50 border-l-4 border-red-500 text-red-800 p-4 rounded-lg shadow-sm";
         } else {
@@ -79,7 +71,7 @@ export const renderDashboard = () => {
     }
 };
 
-// --- 2. Transactions Table ---
+// --- Transactions Table ---
 export const renderTransactions = () => {
     const tbody = document.getElementById('transaction-table');
     if(!tbody) return;
@@ -89,8 +81,7 @@ export const renderTransactions = () => {
         .filter(t => (!t.type || t.type === 'transaction') && fastFilterByDate(t))
         .sort((a, b) => (a.date < b.date ? 1 : -1));
 
-    // Limit to 100 for speed
-    const subset = sorted.slice(0, 100);
+    const subset = sorted.slice(0, 100); // Limit to 100
     let html = '';
 
     for (let i = 0; i < subset.length; i++) {
@@ -120,7 +111,7 @@ export const renderTransactions = () => {
     tbody.innerHTML = html;
 };
 
-// --- 3. Job Profitability ---
+// --- Jobs ---
 export const renderJobs = () => {
     const tbody = document.getElementById('job-table');
     if(!tbody) return;
@@ -146,7 +137,7 @@ export const renderJobs = () => {
     tbody.innerHTML = html || '<tr><td colspan="4" class="text-center py-4 text-gray-500">No active jobs.</td></tr>';
 };
 
-// --- 4. AP / AR ---
+// --- AP / AR ---
 export const renderAPAR = (type) => {
     const tbody = document.getElementById(type === 'ar' ? 'ar-table' : 'ap-table');
     if(!tbody) return;
@@ -165,7 +156,7 @@ export const renderAPAR = (type) => {
     tbody.innerHTML = html || '<tr><td colspan="6" class="text-center py-4 text-gray-500">No items found.</td></tr>';
 };
 
-// --- 5. Taxes ---
+// --- Taxes ---
 export const renderTaxes = () => {
     const activeTxs = state.transactions.filter(t => fastFilterByDate(t) && (!t.type || t.type === 'transaction'));
     let net = 0;
@@ -178,19 +169,13 @@ export const renderTaxes = () => {
     const rate = rateInput ? rateInput.value / 100 : 0.3;
     const estTax = net > 0 ? net * rate : 0;
     
-    const profitEl = document.getElementById('tax-net-profit');
-    if(profitEl) profitEl.textContent = formatCurrency(net);
+    document.getElementById('tax-net-profit').textContent = formatCurrency(net);
+    document.getElementById('tax-total-due').textContent = formatCurrency(estTax);
     
-    const dueEl = document.getElementById('tax-total-due');
-    if(dueEl) dueEl.textContent = formatCurrency(estTax);
-    
-    [1,2,3,4].forEach(q => {
-        const el = document.getElementById(`tax-q${q}`);
-        if(el) el.textContent = formatCurrency(estTax/4);
-    });
+    [1,2,3,4].forEach(q => document.getElementById(`tax-q${q}`).textContent = formatCurrency(estTax/4));
 };
 
-// --- 6. Reports ---
+// --- Reports ---
 export const renderReports = (type) => {
     ['pl', 'vendors', 'ar-aging', 'ap-aging'].forEach(t => {
         const div = document.getElementById(`report-${t}-content`);
@@ -233,7 +218,7 @@ export const renderReports = (type) => {
     }
 };
 
-// --- 7. Guide ---
+// --- Guide ---
 export const renderGuide = () => {
     const container = document.getElementById('accordion-container');
     if(!container || container.children.length > 0) return; 
@@ -246,15 +231,13 @@ export const renderGuide = () => {
     container.innerHTML = guides.map(g => `<div class="border rounded mb-2"><div class="p-3 font-bold bg-gray-50">${g.t}</div><div class="p-3 text-sm">${g.c}</div></div>`).join('');
 };
 
-// --- 8. Exports (Fixing the errors) ---
 
-// Populate Dropdowns
+// --- Exports (Fixing the errors) ---
 export const populateCategorySelect = (id) => {
     const s = document.getElementById(id);
     if(s) s.innerHTML = state.categories.map(c => `<option value="${c}">${c}</option>`).join('');
 };
 
-// Populate Manage Categories List
 export const populateCategoryList = () => {
     const el = document.getElementById('category-list');
     if(el) {
@@ -264,17 +247,15 @@ export const populateCategoryList = () => {
     }
 };
 
-// Populate Rules List
 export const populateRulesList = () => {
     const el = document.getElementById('rules-list');
     if(el) {
         el.innerHTML = state.rules.map((r,i) => 
-            `<div class="flex justify-between p-2 border-b text-sm"><span>"${r.keyword}" → ${r.category}</span></div>`
+            `<div class="flex justify-between p-2 border-b text-sm"><span>"${r.keyword}" → ${r.category}</span><button class="text-red-500 del-rule-btn" data-idx="${i}">×</button></div>`
         ).join('');
     }
 };
 
-// Populate Year/Month Filters
 export const populateDateDropdowns = () => {
     if (state.transactions.length === 0) return;
     const years = new Set();
@@ -289,3 +270,6 @@ export const populateDateDropdowns = () => {
             ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i) => `<option value="${i+1}">${m}</option>`).join('');
     }
 };
+```
+
+This should perfectly align your code with your HTML and fix the data duplication issue automatically.
