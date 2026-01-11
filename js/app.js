@@ -34,7 +34,7 @@ const init = async () => {
 
 // --- Auto-Cleanup & Refresh ---
 const refreshApp = () => {
-    // 1. Run Auto-Cleanup (Fixes the double income issue instantly)
+    // 1. Run Auto-Cleanup
     performAutoCleanup();
 
     // 2. Render
@@ -61,7 +61,6 @@ const performAutoCleanup = () => {
     const clean = [];
     let dupeCount = 0;
 
-    // Sort to keep the best version (Reconciled/Categorized first)
     state.transactions.sort((a, b) => {
         if (a.reconciled && !b.reconciled) return -1;
         if (!a.reconciled && b.reconciled) return 1;
@@ -71,7 +70,6 @@ const performAutoCleanup = () => {
     });
 
     state.transactions.forEach(tx => {
-        // Robust Signature: Date(YYYY-MM-DD) + Desc + Amount
         const d = tx.date ? tx.date.substring(0, 10) : 'no-date';
         const desc = (tx.description || '').trim().toLowerCase();
         const amt = parseFloat(tx.amount).toFixed(2);
@@ -87,9 +85,8 @@ const performAutoCleanup = () => {
 
     if (dupeCount > 0) {
         state.transactions = clean;
-        state.persist(); // Save clean version to cloud
+        state.persist(); 
         console.log(`Auto-cleaned ${dupeCount} duplicates.`);
-        // Optional: showToast(`Fixed: Removed ${dupeCount} duplicates`); 
     }
 };
 
@@ -129,31 +126,34 @@ document.getElementById('year-filter').addEventListener('change', () => { UI.ren
 document.getElementById('month-filter').addEventListener('change', () => { UI.renderDashboard(); UI.renderTransactions(); });
 
 // --- Edit Transaction & Logic ---
-document.getElementById('transaction-table').addEventListener('click', (e) => {
-    // Edit Button
-    if(e.target.classList.contains('edit-btn')) {
-        const id = e.target.dataset.id;
-        const tx = state.transactions.find(t => t.id === id);
-        document.getElementById('modal-transaction-id').value = id;
-        document.getElementById('modal-job').value = tx.job || '';
-        document.getElementById('modal-description').textContent = tx.description;
-        UI.populateCategorySelect('modal-category');
-        document.getElementById('modal-category').value = tx.category;
-        document.getElementById('edit-modal').classList.remove('hidden');
-    }
-    // Reconcile Checkbox Logic
-    if(e.target.type === 'checkbox' && e.target.classList.contains('reconcile-checkbox')) {
-        const id = e.target.dataset.id;
-        if (id) {
-             const tx = state.transactions.find(t => t.id === id);
-             if(tx) {
-                 tx.reconciled = e.target.checked;
-                 state.persist(); 
-                 UI.renderDashboard(); 
-             }
+const txTable = document.getElementById('transaction-table');
+if(txTable) {
+    txTable.addEventListener('click', (e) => {
+        // Edit Button
+        if(e.target.classList.contains('edit-btn')) {
+            const id = e.target.dataset.id;
+            const tx = state.transactions.find(t => t.id === id);
+            document.getElementById('modal-transaction-id').value = id;
+            document.getElementById('modal-job').value = tx.job || '';
+            document.getElementById('modal-description').textContent = tx.description;
+            UI.populateCategorySelect('modal-category');
+            document.getElementById('modal-category').value = tx.category;
+            document.getElementById('edit-modal').classList.remove('hidden');
         }
-    }
-});
+        // Reconcile Checkbox
+        if(e.target.type === 'checkbox' && e.target.classList.contains('reconcile-checkbox')) {
+            const id = e.target.dataset.id;
+            if (id) {
+                const tx = state.transactions.find(t => t.id === id);
+                if(tx) {
+                    tx.reconciled = e.target.checked;
+                    state.persist(); 
+                    UI.renderDashboard(); 
+                }
+            }
+        }
+    });
+}
 
 // Select All Logic
 const selectAllBox = document.getElementById('select-all-rec');
@@ -178,48 +178,9 @@ document.getElementById('save-button').addEventListener('click', () => {
     const newJob = document.getElementById('modal-job').value;
     const notes = document.getElementById('modal-notes').value;
     
-    const tx = state.transactions.find(t => t.id === id);
-    const oldCat = tx.category;
-
     state.updateTransaction(id, { category: newCat, job: newJob, notes: notes });
     document.getElementById('edit-modal').classList.add('hidden');
-
-    // Batch Update Check
-    if (oldCat !== newCat) {
-        const similar = state.transactions.filter(t => 
-            t.id !== id && 
-            t.description.split(' ')[0] === tx.description.split(' ')[0] && 
-            t.category === oldCat
-        );
-        
-        if (similar.length > 0) {
-            document.getElementById('batch-update-body').textContent = `Found ${similar.length} similar transactions. Update them all to "${newCat}"?`;
-            
-            const yesBtn = document.getElementById('batch-update-confirm-button');
-            const noBtn = document.getElementById('batch-update-cancel-button');
-            
-            const handleBatch = (doUpdate) => {
-                if(doUpdate) {
-                    similar.forEach(t => t.category = newCat);
-                    state.persist();
-                    showToast(`Updated ${similar.length} transactions`);
-                }
-                document.getElementById('batch-update-modal').classList.add('hidden');
-                refreshApp();
-                yesBtn.onclick = null;
-                noBtn.onclick = null;
-            };
-
-            yesBtn.onclick = () => handleBatch(true);
-            noBtn.onclick = () => handleBatch(false);
-            
-            document.getElementById('batch-update-modal').classList.remove('hidden');
-        } else {
-            refreshApp();
-        }
-    } else {
-        refreshApp();
-    }
+    refreshApp();
 });
 document.getElementById('cancel-button').addEventListener('click', () => document.getElementById('edit-modal').classList.add('hidden'));
 
@@ -243,14 +204,17 @@ document.getElementById('close-category-modal').addEventListener('click', () => 
     refreshApp();
 });
 // Category Delete Delegation
-document.getElementById('category-list').addEventListener('click', (e) => {
-    if(e.target.classList.contains('del-cat-btn')) {
-        const cat = e.target.dataset.cat;
-        state.categories = state.categories.filter(c => c !== cat);
-        state.persist();
-        UI.populateCategoryList();
-    }
-});
+const catList = document.getElementById('category-list');
+if(catList) {
+    catList.addEventListener('click', (e) => {
+        if(e.target.classList.contains('del-cat-btn')) {
+            const cat = e.target.dataset.cat;
+            state.categories = state.categories.filter(c => c !== cat);
+            state.persist();
+            UI.populateCategoryList();
+        }
+    });
+}
 
 document.getElementById('rules-button').addEventListener('click', () => {
     UI.populateRulesList();
@@ -270,15 +234,17 @@ document.getElementById('close-rules-modal').addEventListener('click', () => {
     document.getElementById('rules-modal').classList.add('hidden');
 });
 // Rule Delete Delegation
-document.getElementById('rules-list').addEventListener('click', (e) => {
-    if(e.target.classList.contains('del-rule-btn')) {
-        const idx = e.target.dataset.idx;
-        state.rules.splice(idx, 1);
-        state.persist();
-        UI.populateRulesList();
-    }
-});
-
+const rulesList = document.getElementById('rules-list');
+if(rulesList) {
+    rulesList.addEventListener('click', (e) => {
+        if(e.target.classList.contains('del-rule-btn')) {
+            const idx = e.target.dataset.idx;
+            state.rules.splice(idx, 1);
+            state.persist();
+            UI.populateRulesList();
+        }
+    });
+}
 
 // --- AP/AR Logic ---
 const openAPAR = (type, id = null) => {
@@ -378,7 +344,7 @@ document.getElementById('close-recon-btn').addEventListener('click', () => {
     document.getElementById('reconcile-modal').classList.add('hidden');
 });
 
-// --- CSV Import with Deduplication ---
+// --- CSV Import ---
 document.getElementById('csv-file').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if(!file) return;
@@ -411,7 +377,7 @@ document.getElementById('csv-file').addEventListener('change', (e) => {
 
             if (newTxs.length > 0) {
                 state.addTransactions(newTxs);
-                refreshApp(); // This triggers performAutoCleanup()
+                refreshApp(); 
                 showToast(`Imported ${newTxs.length} items.`);
             }
         }
@@ -422,7 +388,7 @@ document.getElementById('csv-file').addEventListener('change', (e) => {
 document.getElementById('login-btn').addEventListener('click', loginUser);
 document.getElementById('logout-btn').addEventListener('click', () => { logoutUser(); location.reload(); });
 
-// Expose state (just in case)
+// Expose state
 window.bookkeeperState = state;
 
 // Start
