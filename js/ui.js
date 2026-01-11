@@ -1,4 +1,3 @@
-// js/ui.js
 import { state } from "./state.js";
 import { formatCurrency } from "./utils.js";
 
@@ -30,25 +29,24 @@ export const renderDashboard = () => {
     
     let income = 0;
     let expense = 0;
-    let draws = 0;
     let arTotal = 0;
     let apTotal = 0;
+    let unreconciledCount = 0; // Track this
 
     for (let i = 0; i < activeTxs.length; i++) {
         const t = activeTxs[i];
         const amt = t.amount;
 
         // Simple Math: Positive is Income, Negative is Expense.
-        // We do NOT filter out Owner's Pay from expenses anymore.
         if (amt >= 0 && t.category !== 'Transfer') {
             income += amt;
         } else if (amt < 0 && t.category !== 'Transfer') {
             expense += Math.abs(amt);
         }
 
-        // Just for the Purple Box display (doesn't affect Net/Expense totals)
-        if (amt < 0 && t.category === "Owner's Draw") {
-            draws += Math.abs(amt);
+        // Count unreconciled
+        if (!t.reconciled) {
+            unreconciledCount++;
         }
 
         // AP/AR Stats
@@ -65,10 +63,10 @@ export const renderDashboard = () => {
     
     safeSet('total-income', formatCurrency(income));
     safeSet('total-expense', formatCurrency(expense));
-    safeSet('total-draws', formatCurrency(draws));
     safeSet('net-total', formatCurrency(net));
     safeSet('total-ar', formatCurrency(arTotal));
     safeSet('total-ap', formatCurrency(apTotal));
+    safeSet('total-unreconciled', unreconciledCount); // Update the count
     
     // Color coding for Net
     const netEl = document.getElementById('net-total')?.parentElement;
@@ -103,7 +101,7 @@ export const renderTransactions = () => {
         html += `
             <tr class="hover:bg-gray-50 transition-colors">
                 <td class="px-2 py-3 text-center">
-                    <input type="checkbox" class="h-4 w-4 text-indigo-600" data-id="${tx.id}" ${tx.reconciled ? 'checked' : ''}>
+                    <input type="checkbox" class="reconcile-checkbox h-4 w-4 text-indigo-600" data-id="${tx.id}" ${tx.reconciled ? 'checked' : ''}>
                 </td>
                 <td class="px-6 py-3 text-sm text-gray-500">${dateStr}</td>
                 <td class="px-6 py-3 text-sm text-gray-900 truncate max-w-xs" title="${tx.description}">${tx.description}</td>
@@ -173,7 +171,6 @@ export const renderTaxes = () => {
     let net = 0;
     for(const t of activeTxs) {
         if(t.category === 'Transfer') continue;
-        // Logic: Include Owner's Draw in expenses for tax estimation if user wants simple math
         net += t.amount;
     }
 
