@@ -4,23 +4,85 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bookkeeper Pro</title>
+    <!-- Favicon to fix 404 error -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
-    
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = { theme: { extend: { colors: { clifford: '#da373d' } } } }
-    </script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css">
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.4.4/lz-string.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .modal-backdrop {
+            background-color: rgba(0,0,0,0.5);
+            transition: opacity 0.3s ease-in-out;
+        }
+        .modal-content {
+            transition: transform 0.3s ease-in-out;
+        }
+        .table-scrollbar::-webkit-scrollbar {
+            height: 8px;
+        }
+        .table-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .table-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .table-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        .loader {
+            border-top-color: #3498db;
+            animation: spin 1s ease-in-out infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        #toast {
+            transform: translateX(150%);
+        }
+        .accordion-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-in-out;
+        }
+        /* For Searchable Dropdown */
+        .searchable-dropdown {
+            position: relative;
+        }
+        .dropdown-menu {
+            position: absolute;
+            background-color: white;
+            border: 1px solid #d1d5db;
+            border-top: none;
+            border-radius: 0 0 0.375rem 0.375rem;
+            width: 100%;
+            z-index: 10;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+        .dropdown-item {
+            padding: 0.5rem 0.75rem;
+            cursor: pointer;
+        }
+        .dropdown-item:hover {
+            background-color: #f3f4f6;
+        }
+        /* Auth UI */
+        .hidden { display: none; }
+    </style>
 </head>
 <body class="antialiased text-gray-800">
 
+    <!-- App Container -->
     <div id="app" class="min-h-screen p-4 sm:p-6 lg:p-8">
         <div class="max-w-7xl mx-auto">
 
+            <!-- Header -->
             <header class="mb-8">
                 <div class="flex flex-wrap justify-between items-center gap-4">
                     <div>
@@ -28,62 +90,76 @@
                         <p class="text-gray-500 mt-1">Cloud-enabled Accounting Tool</p>
                     </div>
                     
+                    <!-- Auth Section -->
                     <div class="flex items-center gap-3">
+                        <!-- Loading Spinner for Auth -->
                         <div id="auth-loading" class="hidden">
                             <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-6 w-6"></div>
                         </div>
 
+                        <!-- Guest View -->
                         <button id="login-btn" class="hidden flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors text-sm font-semibold">
                             <svg class="w-4 h-4" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
                             Sign In with Google
                         </button>
 
+                        <!-- Logged In View -->
                         <div id="user-info" class="hidden flex items-center gap-3 bg-white border border-gray-200 px-3 py-1.5 rounded-full shadow-sm">
                             <img id="user-avatar" src="" alt="User" class="w-6 h-6 rounded-full">
                             <span id="user-name" class="text-sm font-medium text-gray-700 truncate max-w-[150px]"></span>
                             <button id="logout-btn" class="text-xs text-red-600 hover:text-red-800 font-semibold ml-2">Sign Out</button>
                         </div>
 
+                        <!-- External Links -->
                         <div class="hidden md:flex items-center gap-3 border-l pl-4 border-gray-300">
+                            <!-- Service App Link -->
                             <a href="https://www.appsheet.com/start/90811d78-1165-4542-bbaa-af393ca455a5?platform=desktop#appName=SVC-QApp-721685306&vss=H4sIAAAAAAAAA52OvQ7CMBCD38VzniArYgAEC4iFdEibqxTRJlWTAlWUd-fCj1iB8Xz-bCdcLF33UTdnyFP6XBuaIZEUDvNAClJh4V0cfacgFHa6f4prXweFjFyJNxspQKbvUfl_q4A15KJtLY0lp1DMvxh-F4KF4kcW6Keo644eI9mfM2utb6ZA5sgTfqwOK7e8DdqZrTcc1-ouUL4DXt8N6VEBAAA=&view=Jobs" target="_blank" class="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-xs font-bold bg-blue-50 px-2 py-1 rounded border border-blue-100 transition-colors">
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
                                 Service Q
                             </a>
 
+                            <!-- Invoice Generator Link -->
                             <a href="https://servicecoinrwb.github.io/invoice-generator/" target="_blank" class="flex items-center gap-1 text-purple-700 hover:text-purple-900 text-xs font-bold bg-purple-50 px-2 py-1 rounded border border-purple-100 transition-colors">
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                 Invoice Gen
                             </a>
-
+                            <!-- Receipt Link -->
                             <a href="https://servicecoinrwb.github.io/HVAC-Receipt-Tracker/" target="_blank" class="flex items-center gap-1 text-emerald-700 hover:text-emerald-900 text-xs font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-100 transition-colors">
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
                                 Receipt
                             </a>
-
+                            <!-- Bank Link -->
                             <a href="https://www.communitychoicecu.com/" target="_blank" class="flex items-center gap-1 text-emerald-700 hover:text-emerald-900 text-xs font-bold bg-emerald-50 px-2 py-1 rounded border border-emerald-100 transition-colors">
                                 <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 14v3m4-3v3m4-3v3M3 21h18M3 10h18M3 7l9-4 9 4M4 10h16v11H4V10z"></path></svg>
                                 Bank
                             </a>
 
+                            <!-- Intuit Link -->
                             <a href="https://accounts.intuit.com/app/account-manager/overview" target="_blank" class="text-gray-500 hover:text-indigo-600 text-xs">Intuit</a>
                         </div>
                     </div>
                 </div>
             </header>
 
+            <!-- Main Content -->
             <main>
+                <!-- Status Bar for Cloud Sync -->
                 <div id="cloud-status" class="hidden mb-4 bg-blue-50 text-blue-700 px-4 py-2 rounded-lg text-sm flex items-center gap-2">
-                    <svg class="animate-spin h-4 w-4 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                    <svg class="animate-spin h-4 w-4 text-blue-700" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
                     Syncing with cloud...
                 </div>
 
+                <!-- Step 1: File Upload -->
                 <div id="upload-section" class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                     <h2 class="text-xl font-semibold mb-4">Step 1: Import Transactions</h2>
                     <p class="text-gray-600 mb-4">Upload a CSV file from your bank. Or, log in to load a previously saved session.</p>
                     <div class="flex items-center justify-center w-full">
                         <label for="csv-file" class="flex flex-col items-center justify-center w-full h-48 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition-colors">
                             <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                                <svg class="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h5l5 5v7a4 4 0 01-4 4H7z"></path></svg>
+                                <svg class="w-10 h-10 mb-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-4-4V7a4 4 0 014-4h5l5 5v7a4 4 0 01-4 4H7z"></path></svg>
                                 <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">Click to upload</span> or drag and drop</p>
                                 <p class="text-xs text-gray-500">CSV file (max 5MB)</p>
                             </div>
@@ -93,7 +169,9 @@
                     <div id="file-info" class="mt-4 text-sm text-gray-600"></div>
                 </div>
 
+                <!-- Step 2: Categorization & Export (hidden initially) -->
                 <div id="data-section" class="hidden mt-8">
+                    <!-- Dashboard -->
                     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-6 mb-8">
                         <div class="bg-green-50 border-l-4 border-green-500 text-green-800 p-4 rounded-lg shadow-sm">
                             <div class="text-sm font-medium">TOTAL INCOME</div>
@@ -107,7 +185,7 @@
                             <div class="text-sm font-medium">NET</div>
                             <div id="net-total" class="text-2xl font-bold">$0.00</div>
                         </div>
-                        <div id="ar-card" class="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-lg shadow-sm">
+                         <div id="ar-card" class="bg-yellow-50 border-l-4 border-yellow-500 text-yellow-800 p-4 rounded-lg shadow-sm">
                             <div class="text-sm font-medium">A/R (OWED TO YOU) <span id="ar-past-due-warning" class="text-xs font-bold ml-2 hidden">(PAST DUE)</span></div>
                             <div id="total-ar" class="text-2xl font-bold">$0.00</div>
                         </div>
@@ -119,57 +197,59 @@
                             <div class="text-sm font-medium">UNRECONCILED</div>
                             <div id="total-unreconciled" class="text-2xl font-bold">0</div>
                         </div>
-                        <div class="bg-indigo-50 border-l-4 border-indigo-500 text-indigo-800 p-4 rounded-lg shadow-sm">
-                            <div class="text-sm font-medium">OWNER'S PAY</div>
-                            <div id="total-draws" class="text-2xl font-bold">$0.00</div>
-                        </div>
                     </div>
 
                     <div class="bg-white p-6 rounded-xl shadow-md border border-gray-200">
                         <div class="flex flex-col md:flex-row justify-between md:items-center mb-4">
                             <h2 class="text-xl font-semibold">Step 2: Process Transactions</h2>
+                             <!-- Tab Navigation -->
                             <div class="mt-4 md:mt-0 border-b border-gray-200">
                                 <nav class="-mb-px flex space-x-6 overflow-x-auto" aria-label="Tabs">
-                                    <button id="tab-transactions" class="border-indigo-500 text-indigo-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Transactions</button>
-                                    <button id="tab-jobs" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Job Profitability</button>
-                                    <button id="tab-ar" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/R (Invoices)</button>
-                                    <button id="tab-ap" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/P (Bills)</button>
-                                    <button id="tab-reports" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Reports</button>
-                                    <button id="tab-taxes" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Taxes</button>
-                                    <button id="tab-guide" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Guide</button>
+                                    <button id="tab-transactions" class="border-indigo-500 text-indigo-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm" aria-current="page">Transactions</button>
+                                    <button id="tab-jobs" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Job Profitability</button>
+                                    <button id="tab-ar" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/R (Invoices)</button>
+                                    <button id="tab-ap" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/P (Bills)</button>
+                                    <button id="tab-reports" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Reports</button>
+                                    <button id="tab-taxes" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Taxes</button>
+                                    <button id="tab-guide" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Bookkeeping Guide</button>
                                 </nav>
                             </div>
                         </div>
-
+                        
+                         <!-- QuickBooks Account Inputs -->
                         <div id="quickbooks-inputs" class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 p-4 bg-gray-50 rounded-lg border">
                             <div>
                                 <label for="bank-account" class="block text-sm font-medium text-gray-700">QuickBooks Bank Account</label>
-                                <input type="text" id="bank-account" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm" placeholder="e.g., Checking">
+                                <input type="text" id="bank-account" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="e.g., Checking">
                             </div>
                             <div>
                                 <label for="default-expense-account" class="block text-sm font-medium text-gray-700">Default Expense Account</label>
-                                <input type="text" id="default-expense-account" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm" placeholder="e.g., Uncategorized Expense">
+                                <input type="text" id="default-expense-account" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="e.g., Uncategorized Expense">
                             </div>
                         </div>
 
+                        <!-- Action Buttons -->
                         <div id="action-buttons-container" class="flex flex-wrap items-center gap-4 mb-4">
                             <button id="export-button" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:cursor-not-allowed">Export to QuickBooks (.iif)</button>
                             <button id="add-category-button" class="bg-gray-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-colors">Manage Categories</button>
-                            <button id="rules-button" class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors">Categorization Rules</button>
-                            <button id="save-session-button" class="bg-green-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">Save Session</button>
+                             <button id="rules-button" class="bg-purple-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors">Categorization Rules</button>
+                             <button id="save-session-button" class="bg-green-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors">Save Session</button>
                             <button id="clear-session-button" class="bg-red-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors">Clear Data</button>
+                            <!-- Date Filters -->
                             <div id="date-filter-container" class="ml-auto flex gap-2">
                                 <select id="year-filter" class="block w-full md:w-auto rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select>
                                 <select id="month-filter" class="block w-full md:w-auto rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select>
                             </div>
                         </div>
 
+                        <!-- Transactions View -->
                         <div id="view-transactions">
                             <div class="mb-4 flex flex-wrap items-center gap-4">
-                                <button id="import-more-transactions-button" class="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 text-sm font-semibold">Import More Transactions</button>
-                                <button id="start-reconcile-btn" class="bg-teal-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 text-sm font-semibold">
+                               <button id="import-more-transactions-button" class="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 text-sm font-semibold">Import More Transactions</button>
+                               <button id="start-reconcile-btn" class="bg-teal-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 text-sm font-semibold">
                                     ⚖️ Reconcile
-                                </button>
+                               </button>
+                               <!-- Transaction Search Bar -->
                                 <div class="relative flex-grow md:flex-grow-0 md:w-64">
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
@@ -177,50 +257,63 @@
                                     <input type="text" id="transaction-search" class="block w-full pl-10 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" placeholder="Search Transactions...">
                                 </div>
                             </div>
+                            <!-- Transaction Table -->
                             <div class="overflow-x-auto table-scrollbar">
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
                                         <tr>
-                                            <th class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase">
+                                            <th scope="col" class="px-2 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                                                 <div class="flex items-center gap-1">
                                                     <input type="checkbox" id="select-all-rec" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer">
                                                     <span>Rec</span>
                                                 </div>
                                             </th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Category</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Job</th>
-                                            <th class="px-6 py-3"></th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Job/Customer</th>
+                                            <th scope="col" class="relative px-6 py-3">
+                                                <span class="sr-only">Edit</span>
+                                            </th>
                                         </tr>
                                     </thead>
-                                    <tbody id="transaction-table" class="bg-white divide-y divide-gray-200"></tbody>
+                                    <tbody id="transaction-table" class="bg-white divide-y divide-gray-200">
+                                        <!-- Rows will be inserted here -->
+                                    </tbody>
                                 </table>
                             </div>
                         </div>
 
+                        <!-- Job Profitability View -->
                         <div id="view-jobs" class="hidden">
-                            <div class="overflow-x-auto table-scrollbar">
+                             <div class="overflow-x-auto table-scrollbar">
                                 <table class="min-w-full divide-y divide-gray-200">
                                     <thead class="bg-gray-50">
                                         <tr>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Job/Customer</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Income</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Expenses</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Net Profit</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Job/Customer</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Income</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Expenses</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Profit</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="job-table" class="bg-white divide-y divide-gray-200"></tbody>
+                                    <tbody id="job-table" class="bg-white divide-y divide-gray-200">
+                                        <!-- Job rows will be inserted here -->
+                                    </tbody>
                                 </table>
                             </div>
                         </div>
-
+                        
+                        <!-- Accounts Receivable View -->
                         <div id="view-ar" class="hidden">
                             <div class="flex flex-wrap items-center gap-4 mb-4">
                                 <button id="add-invoice-button" class="bg-blue-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Add New Invoice</button>
-                                <label for="invoice-csv-file" class="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg shadow-sm hover:bg-blue-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">Import Invoice CSV</label>
+                                <label for="invoice-csv-file" class="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg shadow-sm hover:bg-blue-200 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                                    Import Invoice CSV
+                                </label>
                                 <input type="file" id="invoice-csv-file" class="hidden" accept=".csv">
+                                
+                                <!-- AR Status Filter -->
                                 <div class="w-32">
                                     <select id="ar-status-filter" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
                                         <option value="all">All Status</option>
@@ -228,6 +321,8 @@
                                         <option value="paid">Paid</option>
                                     </select>
                                 </div>
+
+                                <!-- Search AR -->
                                 <div class="relative ml-auto w-full md:w-64">
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
@@ -240,11 +335,11 @@
                                     <thead class="bg-gray-50">
                                         <tr>
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Customer</th>
-                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Inv #</th>
+                                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice #</th>
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                            <th class="px-6 py-3"></th>
+                                            <th class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
                                         </tr>
                                     </thead>
                                     <tbody id="ar-table" class="bg-white divide-y divide-gray-200"></tbody>
@@ -252,9 +347,11 @@
                             </div>
                         </div>
 
+                        <!-- Accounts Payable View -->
                         <div id="view-ap" class="hidden">
                             <div class="flex flex-wrap items-center gap-4 mb-4">
                                 <button id="add-bill-button" class="bg-orange-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500">Add New Bill</button>
+                                <!-- Search AP -->
                                 <div class="relative ml-auto w-full md:w-64">
                                     <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                         <svg class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" /></svg>
@@ -271,7 +368,7 @@
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
                                             <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                                            <th class="px-6 py-3"></th>
+                                            <th class="relative px-6 py-3"><span class="sr-only">Actions</span></th>
                                         </tr>
                                     </thead>
                                     <tbody id="ap-table" class="bg-white divide-y divide-gray-200"></tbody>
@@ -279,13 +376,14 @@
                             </div>
                         </div>
 
+                        <!-- Reports View -->
                         <div id="view-reports" class="hidden">
-                            <div class="mb-4 border-b border-gray-200">
-                                <nav class="-mb-px flex space-x-8 overflow-x-auto">
+                             <div class="mb-4 border-b border-gray-200">
+                                <nav class="-mb-px flex space-x-8 overflow-x-auto" aria-label="Report Tabs">
                                     <button id="report-tab-pl" class="border-indigo-500 text-indigo-600 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Profit & Loss</button>
-                                    <button id="report-tab-vendors" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Vendor Expenses</button>
-                                    <button id="report-tab-ar-aging" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/R Aging</button>
-                                    <button id="report-tab-ap-aging" class="border-transparent text-gray-500 hover:text-gray-700 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/P Aging</button>
+                                    <button id="report-tab-vendors" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">Vendor Expenses</button>
+                                    <button id="report-tab-ar-aging" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/R Aging</button>
+                                    <button id="report-tab-ap-aging" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm">A/P Aging</button>
                                 </nav>
                             </div>
                             <div id="report-pl-content" class="prose max-w-none prose-indigo"></div>
@@ -294,13 +392,15 @@
                             <div id="report-ap-aging-content" class="hidden prose max-w-none prose-indigo"></div>
                         </div>
 
+                         <!-- Taxes View -->
                         <div id="view-taxes" class="hidden">
+                            <!-- Settings & Summary -->
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                                 <div class="bg-gray-50 border border-gray-200 p-4 rounded-lg">
                                     <h3 class="text-lg font-semibold text-gray-900 mb-2">Tax Settings</h3>
                                     <div class="flex items-center justify-between">
                                         <label for="tax-rate-input" class="text-sm font-medium text-gray-700">Estimated Tax Rate (%)</label>
-                                        <input type="number" id="tax-rate-input" value="30" class="w-20 rounded-md border-gray-300 shadow-sm text-right">
+                                        <input type="number" id="tax-rate-input" value="30" class="w-20 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm text-right" min="0" max="100">
                                     </div>
                                     <p class="text-xs text-gray-500 mt-2">Typical rate is 25-30% (Self-Employment + Income Tax).</p>
                                 </div>
@@ -316,174 +416,286 @@
                                     </div>
                                 </div>
                             </div>
+
+                            <!-- Quarterly Payments Table -->
                             <h3 class="text-lg font-semibold text-gray-900 mb-4">Quarterly Payment Estimates</h3>
-                            <div id="tax-year-warning" class="hidden bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4">
-                                <p>Please select a specific <strong>Year</strong> from the filters above.</p>
+                            <div id="tax-year-warning" class="hidden bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-4" role="alert">
+                                <p>Please select a specific <strong>Year</strong> from the filters above to see accurate quarterly estimates.</p>
                             </div>
                             <div class="overflow-hidden shadow ring-1 ring-black ring-opacity-5 sm:rounded-lg mb-6">
                                 <table class="min-w-full divide-y divide-gray-300">
                                     <thead class="bg-gray-50">
                                         <tr>
-                                            <th class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Quarter</th>
-                                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Due Date</th>
-                                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Period</th>
-                                            <th class="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Est. Payment</th>
+                                            <th scope="col" class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900 sm:pl-6">Quarter</th>
+                                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Due Date</th>
+                                            <th scope="col" class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Period Covered</th>
+                                            <th scope="col" class="px-3 py-3.5 text-right text-sm font-semibold text-gray-900">Est. Payment</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y divide-gray-200 bg-white">
-                                        <tr><td class="py-4 pl-4 text-sm font-medium">Q1</td><td class="px-3 py-4 text-sm text-gray-500">April 15</td><td class="px-3 py-4 text-sm text-gray-500">Jan-Mar</td><td class="px-3 py-4 text-sm text-right font-medium" id="tax-q1">$0.00</td></tr>
-                                        <tr><td class="py-4 pl-4 text-sm font-medium">Q2</td><td class="px-3 py-4 text-sm text-gray-500">June 15</td><td class="px-3 py-4 text-sm text-gray-500">Apr-May</td><td class="px-3 py-4 text-sm text-right font-medium" id="tax-q2">$0.00</td></tr>
-                                        <tr><td class="py-4 pl-4 text-sm font-medium">Q3</td><td class="px-3 py-4 text-sm text-gray-500">Sept 15</td><td class="px-3 py-4 text-sm text-gray-500">Jun-Aug</td><td class="px-3 py-4 text-sm text-right font-medium" id="tax-q3">$0.00</td></tr>
-                                        <tr><td class="py-4 pl-4 text-sm font-medium">Q4</td><td class="px-3 py-4 text-sm text-gray-500">Jan 15</td><td class="px-3 py-4 text-sm text-gray-500">Sep-Dec</td><td class="px-3 py-4 text-sm text-right font-medium" id="tax-q4">$0.00</td></tr>
+                                        <tr>
+                                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">Q1</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">April 15</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">Jan 1 – Mar 31</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-right font-medium" id="tax-q1">$0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">Q2</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">June 15</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">Apr 1 – May 31</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-right font-medium" id="tax-q2">$0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">Q3</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">Sept 15</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">Jun 1 – Aug 31</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-right font-medium" id="tax-q3">$0.00</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900 sm:pl-6">Q4</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">Jan 15 (Next Year)</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">Sep 1 – Dec 31</td>
+                                            <td class="whitespace-nowrap px-3 py-4 text-sm text-right font-medium" id="tax-q4">$0.00</td>
+                                        </tr>
                                     </tbody>
                                 </table>
                             </div>
+
+                            <!-- Tax Concepts Guide -->
+                            <div class="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+                                <h3 class="text-lg font-semibold text-gray-900 mb-3">Tax Concepts: Paying Yourself vs. Business Expenses</h3>
+                                <div class="space-y-4 text-sm text-gray-600">
+                                    <p>
+                                        <strong>The "Profit" Bucket:</strong>
+                                        The IRS taxes you on your business <em>Profit</em> (Total Income minus Business Expenses). This happens regardless of where the money sits (in your business account, personal account, or under your mattress).
+                                    </p>
+                                    <div class="bg-blue-50 p-3 rounded-md border-l-4 border-blue-400">
+                                        <p class="font-medium text-blue-900">Scenario: "Writing a Check to Myself"</p>
+                                        <p class="mt-1">
+                                            When you transfer money from your business checking to your personal savings (or any personal account), this is called an <strong>Owner's Draw</strong>.
+                                        </p>
+                                        <ul class="list-disc list-inside mt-2 ml-2 space-y-1">
+                                            <li>It is <strong>NOT</strong> a tax-deductible business expense.</li>
+                                            <li>It does <strong>NOT</strong> lower your taxable profit.</li>
+                                            <li>It is simply you taking your "paycheck" after taxes are calculated on the profit.</li>
+                                        </ul>
+                                    </div>
+                                    <p>
+                                        <strong>How to Pay Taxes:</strong>
+                                        Since taxes aren't withheld from your Owner's Draw like a regular paycheck, you must make estimated quarterly payments to the IRS based on the schedule above.
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
+
+                        <!-- Bookkeeping Guide View -->
                         <div id="view-guide" class="hidden prose max-w-none prose-indigo">
                             <h3 class="text-xl font-semibold mb-4">HVAC Bookkeeping Guide</h3>
-                            <div class="space-y-4" id="accordion-container"></div>
+                            <div class="space-y-4" id="accordion-container">
+                                <!-- Accordion items will be populated by JS -->
+                            </div>
                         </div>
+
                     </div>
                 </div>
+
             </main>
         </div>
     </div>
 
-    <div id="edit-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop bg-black bg-opacity-50">
-        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95 p-6">
-            <h3 class="text-lg font-medium mb-2">Edit Transaction</h3>
-            <p id="modal-description" class="text-sm text-gray-600 mb-4"></p>
-            <input type="hidden" id="modal-transaction-id">
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700">Category</label>
-                <div class="searchable-dropdown relative">
-                    <input type="text" id="modal-category-search" class="mt-1 block w-full pl-3 pr-10 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" autocomplete="off" placeholder="Search or Select...">
-                    <div id="modal-category-dropdown" class="dropdown-menu hidden absolute bg-white border border-gray-300 rounded-b-md w-full z-10 max-h-48 overflow-y-auto"></div>
-                    <input type="hidden" id="modal-category">
-                </div>
+   <!-- Edit Transaction Modal -->
+    <div id="edit-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95">
+            <div class="p-6">
+                <h3 class="text-lg font-medium leading-6 text-gray-900 mb-2">Edit Transaction</h3>
+                <p id="modal-description" class="text-sm text-gray-600 mb-4"></p>
+                
+                <form id="edit-form">
+                    <input type="hidden" id="modal-transaction-id">
+                    <div class="searchable-dropdown">
+                        <label for="modal-category" class="block text-sm font-medium text-gray-700">Category</label>
+                        <input type="text" id="modal-category-search" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md" autocomplete="off">
+                        <div id="modal-category-dropdown" class="dropdown-menu hidden"></div>
+                        <input type="hidden" id="modal-category">
+                    </div>
+                    <div class="mt-4">
+                        <label for="modal-job" class="block text-sm font-medium text-gray-700">Job/Customer Name</label>
+                        <input type="text" id="modal-job" list="job-list" class="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 rounded-md" placeholder="e.g., Smith Residence Install">
+                        <datalist id="job-list"></datalist>
+                    </div>
+                    <div class="mt-4">
+                        <label for="modal-notes" class="block text-sm font-medium text-gray-700">Notes</label>
+                        <textarea id="modal-notes" rows="3" class="mt-1 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border border-gray-300 rounded-md"></textarea>
+                    </div>
+                </form>
             </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700">Job/Customer Name</label>
-                <input type="text" id="modal-job" list="job-list" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                <datalist id="job-list"></datalist>
-            </div>
-            <div class="mb-4">
-                <label class="block text-sm font-medium text-gray-700">Notes</label>
-                <textarea id="modal-notes" rows="3" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
-            </div>
-            <div class="flex justify-end gap-2">
-                <button id="cancel-button" class="border border-gray-300 px-4 py-2 rounded text-gray-700 hover:bg-gray-50">Cancel</button>
-                <button id="save-button" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Save</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="category-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop bg-black bg-opacity-50">
-        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-lg m-4 transform scale-95 p-6">
-            <h3 class="text-lg font-medium mb-4">Manage Categories</h3>
-            <div class="flex gap-4 mb-4">
-                <input type="text" id="new-category-name" placeholder="New category name" class="flex-grow rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                <button id="add-new-category-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">Add</button>
-            </div>
-            <div id="category-list" class="max-h-60 overflow-y-auto pr-2 border-t pt-2"></div>
-            <div class="mt-4 flex justify-end">
-                <button id="close-category-modal" class="border border-gray-300 px-4 py-2 rounded text-gray-700 hover:bg-gray-50">Done</button>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg">
+                <button id="save-button" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">Save</button>
+                <button id="cancel-button" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Cancel</button>
             </div>
         </div>
     </div>
 
-    <div id="rules-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop bg-black bg-opacity-50">
-        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-2xl m-4 transform scale-95 p-6">
-            <h3 class="text-lg font-medium mb-4">Categorization Rules</h3>
-            <div class="grid grid-cols-3 gap-4 mb-4 items-end bg-gray-50 p-4 rounded border border-gray-200">
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">If contains:</label>
-                    <input type="text" id="rule-keyword" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+    <!-- Manage Categories Modal -->
+    <div id="category-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-lg m-4 transform scale-95">
+             <div class="p-6">
+                <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">Manage Categories</h3>
+                <div class="flex gap-4 mb-4">
+                    <input type="text" id="new-category-name" placeholder="New category name" class="flex-grow block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    <button id="add-new-category-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Add</button>
                 </div>
-                <div>
-                    <label class="block text-sm font-medium text-gray-700">Set category to:</label>
-                    <select id="rule-category" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select>
+                <div id="category-list" class="max-h-60 overflow-y-auto pr-2">
+                    <!-- Category list will be populated here -->
                 </div>
-                <button id="add-rule-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">Add Rule</button>
             </div>
-            <div id="rules-list" class="max-h-60 overflow-y-auto pr-2"></div>
-            <div class="mt-4 flex justify-end">
-                <button id="close-rules-modal" class="border border-gray-300 px-4 py-2 rounded text-gray-700 hover:bg-gray-50">Done</button>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg">
+                <button id="close-category-modal" type="button" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm">Done</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Categorization Rules Modal -->
+    <div id="rules-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-2xl m-4 transform scale-95">
+             <div class="p-6">
+                <h3 class="text-lg font-medium leading-6 text-gray-900 mb-4">Categorization Rules</h3>
+                <p class="text-sm text-gray-500 mb-4">Create rules to automatically categorize transactions on import.</p>
+                <div class="grid grid-cols-3 gap-4 mb-4 items-end p-4 bg-gray-50 rounded-lg border">
+                    <div>
+                         <label for="rule-keyword" class="block text-sm font-medium text-gray-700">If description contains:</label>
+                        <input type="text" id="rule-keyword" placeholder="e.g., Speedway" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div>
+                        <label for="rule-category" class="block text-sm font-medium text-gray-700">Set category to:</label>
+                        <select id="rule-category" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></select>
+                    </div>
+                    <button id="add-rule-btn" class="bg-indigo-600 text-white px-4 py-2 rounded-lg shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 h-fit">Add Rule</button>
+                </div>
+                <div id="rules-list" class="max-h-60 overflow-y-auto pr-2">
+                    <!-- Rules list will be populated here -->
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg">
+                <button id="close-rules-modal" type="button" class="w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:w-auto sm:text-sm">Done</button>
             </div>
         </div>
     </div>
 
-    <div id="ap-ar-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop bg-black bg-opacity-50">
-        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95 p-6">
-            <h3 id="ap-ar-modal-title" class="text-lg font-medium mb-4">Add Item</h3>
-            <input type="hidden" id="ap-ar-id"><input type="hidden" id="ap-ar-type">
-            <div class="space-y-4">
-                <div><label id="ap-ar-party-label" class="block text-sm font-medium text-gray-700">Vendor</label><input type="text" id="ap-ar-party" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></div>
-                <div><label class="block text-sm font-medium text-gray-700">Bill/Invoice #</label><input type="text" id="ap-ar-number" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div><label class="block text-sm font-medium text-gray-700">Date</label><input type="date" id="ap-ar-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></div>
-                    <div><label class="block text-sm font-medium text-gray-700">Amount</label><input type="number" id="ap-ar-amount" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" step="0.01"></div>
-                </div>
+
+    <!-- A/P and A/R Modal -->
+    <div id="ap-ar-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95">
+            <div class="p-6">
+                <h3 id="ap-ar-modal-title" class="text-lg font-medium leading-6 text-gray-900 mb-4">Add New Bill</h3>
+                <form id="ap-ar-form">
+                    <input type="hidden" id="ap-ar-id">
+                    <input type="hidden" id="ap-ar-type">
+                    <div>
+                        <label id="ap-ar-party-label" for="ap-ar-party" class="block text-sm font-medium text-gray-700">Vendor</label>
+                        <input type="text" id="ap-ar-party" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div class="mt-4">
+                        <label for="ap-ar-number" class="block text-sm font-medium text-gray-700">Bill/Invoice #</label>
+                        <input type="text" id="ap-ar-number" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div class="mt-4 grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="ap-ar-date" class="block text-sm font-medium text-gray-700">Date</label>
+                            <input type="date" id="ap-ar-date" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="ap-ar-amount" class="block text-sm font-medium text-gray-700">Amount</label>
+                            <input type="number" id="ap-ar-amount" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" step="0.01">
+                        </div>
+                    </div>
+                </form>
             </div>
-            <div class="mt-6 flex justify-end gap-2">
-                <button id="ap-ar-cancel-button" class="border border-gray-300 px-4 py-2 rounded text-gray-700 hover:bg-gray-50">Cancel</button>
-                <button id="ap-ar-save-button" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Save</button>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg">
+                <button id="ap-ar-save-button" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">Save</button>
+                <button id="ap-ar-cancel-button" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Cancel</button>
             </div>
         </div>
     </div>
 
-    <div id="reconcile-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop bg-black bg-opacity-50">
-        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95 p-6">
-            <h3 class="text-lg font-bold text-gray-900 mb-2">Reconcile Bank Account</h3>
-            <p class="text-sm text-gray-500 mb-4">Enter "Ending Balance" from your Bank Statement.</p>
-            <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4 space-y-3">
-                <div class="flex justify-between text-sm">
-                    <span class="text-gray-600">Calculated (Checked Items):</span>
-                    <span id="recon-calc-balance" class="font-mono font-bold text-gray-900">$0.00</span>
-                </div>
-                <div class="flex justify-between items-center gap-2">
-                    <label for="recon-bank-balance" class="text-sm font-medium text-gray-900 whitespace-nowrap">Statement Balance:</label>
-                    <input type="number" id="recon-bank-balance" placeholder="0.00" step="0.01" class="w-32 text-right rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
-                </div>
-                <div class="border-t border-gray-300 my-2"></div>
-                <div class="flex justify-between text-lg font-bold items-center">
-                    <span>Difference:</span>
-                    <span id="recon-difference" class="text-gray-900">$0.00</span>
+
+    <!-- Confirmation Modal -->
+    <div id="confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95">
+            <div class="p-6">
+                <div class="flex items-start">
+                    <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:mx-0 sm:h-10 sm:w-10">
+                        <svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                    </div>
+                    <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+                        <h3 class="text-lg leading-6 font-medium text-gray-900" id="confirm-modal-title">Clear Session Data</h3>
+                        <div class="mt-2">
+                            <p class="text-sm text-gray-500" id="confirm-modal-body">Are you sure you want to clear all saved transaction data? This action cannot be undone.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div id="recon-success-msg" class="hidden bg-green-100 text-green-800 p-3 rounded-md text-sm text-center font-bold border border-green-200">✅ BALANCED!</div>
-            <div id="recon-error-msg" class="hidden bg-red-100 text-red-800 p-3 rounded-md text-sm text-center font-bold border border-red-200">❌ OFF BALANCE.</div>
-            <div class="mt-4 flex justify-end">
-                <button id="close-recon-btn" class="bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md shadow-sm text-sm font-medium hover:bg-gray-50">Close</button>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg">
+                <button id="confirm-delete-button" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-red-600 text-base font-medium text-white hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 sm:ml-3 sm:w-auto sm:text-sm">Delete</button>
+                <button id="cancel-delete-button" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">Cancel</button>
             </div>
         </div>
     </div>
 
-    <div id="confirm-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop bg-black bg-opacity-50">
-        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95 p-6">
-            <h3 class="text-lg font-medium text-red-600 mb-2">Clear Session Data?</h3>
-            <p class="text-sm text-gray-500 mb-4">This cannot be undone.</p>
-            <div class="flex justify-end gap-2">
-                <button id="cancel-delete-button" class="border border-gray-300 px-4 py-2 rounded text-gray-700 hover:bg-gray-50">Cancel</button>
-                <button id="confirm-delete-button" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Delete</button>
+    <!-- Batch Update Modal -->
+    <div id="batch-update-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95">
+            <div class="p-6">
+                 <div class="mt-3 text-center sm:mt-0 sm:text-left">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900">Apply to Similar Transactions?</h3>
+                    <div class="mt-2">
+                        <p class="text-sm text-gray-500" id="batch-update-body">We found X other transactions with a similar description. Would you like to change their category as well?</p>
+                    </div>
+                </div>
+            </div>
+            <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse rounded-b-lg">
+                <button id="batch-update-confirm-button" type="button" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-indigo-600 text-base font-medium text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:ml-3 sm:w-auto sm:text-sm">Yes, Apply to All</button>
+                <button id="batch-update-cancel-button" type="button" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">No, Just This One</button>
             </div>
         </div>
     </div>
 
-    <div id="batch-update-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop bg-black bg-opacity-50">
-        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md m-4 transform scale-95 p-6">
-            <h3 class="text-lg font-medium mb-2">Batch Update</h3>
-            <p id="batch-update-body" class="text-sm text-gray-500 mb-4"></p>
-            <div class="flex justify-end gap-2">
-                <button id="batch-update-cancel-button" class="border border-gray-300 px-4 py-2 rounded text-gray-700 hover:bg-gray-50">No</button>
-                <button id="batch-update-confirm-button" class="bg-indigo-600 text-white px-4 py-2 rounded hover:bg-indigo-700">Yes, Update All</button>
+    <!-- Reconcile Modal -->
+    <div id="reconcile-modal" class="fixed inset-0 z-50 flex items-center justify-center hidden modal-backdrop p-4">
+        <div class="modal-content bg-white rounded-lg shadow-xl w-full max-w-md transform scale-95 overflow-hidden">
+            <div class="p-6">
+                <h3 class="text-lg font-bold text-gray-900 mb-2">Reconcile Bank Account</h3>
+                <p class="text-sm text-gray-500 mb-4">Enter the "Ending Balance" from your official Bank Statement.</p>
+                
+                <div class="bg-gray-50 p-4 rounded-lg border border-gray-200 mb-4 space-y-3">
+                    <div class="flex justify-between text-sm">
+                        <span class="text-gray-600">Your "Checked" Items Total:</span>
+                        <span id="recon-calc-balance" class="font-mono font-bold text-gray-900">$0.00</span>
+                    </div>
+                    <div class="flex justify-between items-center gap-2">
+                        <label for="recon-bank-balance" class="text-sm font-medium text-gray-900 whitespace-nowrap">Statement Balance:</label>
+                        <input type="number" id="recon-bank-balance" placeholder="0.00" step="0.01" class="w-32 text-right rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div class="border-t border-gray-300 my-2"></div>
+                    <div class="flex justify-between text-lg font-bold items-center">
+                        <span>Difference:</span>
+                        <span id="recon-difference" class="text-gray-900">$0.00</span>
+                    </div>
+                </div>
+
+                <div id="recon-success-msg" class="hidden bg-green-100 text-green-800 p-3 rounded-md text-sm text-center font-bold border border-green-200">
+                    ✅ BALANCED! You are good to go.
+                </div>
+                <div id="recon-error-msg" class="hidden bg-red-100 text-red-800 p-3 rounded-md text-sm text-center font-bold border border-red-200">
+                    ❌ OFF BALANCE. Check your inputs.
+                </div>
+            </div>
+            <div class="bg-gray-50 px-6 py-3 flex flex-row-reverse">
+                <button id="close-recon-btn" class="w-full sm:w-auto bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md shadow-sm text-sm font-medium hover:bg-gray-50">Close</button>
             </div>
         </div>
     </div>
 
-    <div id="toast" class="fixed top-5 right-5 bg-green-500 text-white py-2 px-4 rounded-lg shadow-md transition-transform duration-300 translate-x-[150%]"></div>
-
-    <script type="module" src="js/app.js"></script>
-</body>
-</html>
