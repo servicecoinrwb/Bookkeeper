@@ -1,6 +1,6 @@
 import { auth, loginUser, logoutUser, loadUserData, saveUserData } from "./firebase-service.js";
 import { state } from "./state.js";
-import * as UI from "./ui.js"; // This imports ALL the functions we just exported
+import * as UI from "./ui.js"; 
 import { showToast, exportToIIF, formatCurrency } from "./utils.js";
 import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
 
@@ -32,7 +32,12 @@ const init = async () => {
     });
 };
 
+// --- Auto-Cleanup & Refresh ---
 const refreshApp = () => {
+    // 1. Run Auto-Cleanup (Fixes the double income issue instantly)
+    performAutoCleanup();
+
+    // 2. Render
     if (state.transactions.length > 0 || state.currentUser) {
         document.getElementById('upload-section').classList.add('hidden');
         document.getElementById('data-section').classList.remove('hidden');
@@ -48,6 +53,43 @@ const refreshApp = () => {
     } else {
         document.getElementById('upload-section').classList.remove('hidden');
         document.getElementById('data-section').classList.add('hidden');
+    }
+};
+
+const performAutoCleanup = () => {
+    const seen = new Set();
+    const clean = [];
+    let dupeCount = 0;
+
+    // Sort to keep the best version (Reconciled/Categorized first)
+    state.transactions.sort((a, b) => {
+        if (a.reconciled && !b.reconciled) return -1;
+        if (!a.reconciled && b.reconciled) return 1;
+        if (a.category !== 'Uncategorized' && b.category === 'Uncategorized') return -1;
+        if (a.category === 'Uncategorized' && b.category !== 'Uncategorized') return 1;
+        return 0;
+    });
+
+    state.transactions.forEach(tx => {
+        // Robust Signature: Date(YYYY-MM-DD) + Desc + Amount
+        const d = tx.date ? tx.date.substring(0, 10) : 'no-date';
+        const desc = (tx.description || '').trim().toLowerCase();
+        const amt = parseFloat(tx.amount).toFixed(2);
+        const sig = `${d}|${desc}|${amt}`;
+
+        if (seen.has(sig)) {
+            dupeCount++;
+        } else {
+            seen.add(sig);
+            clean.push(tx);
+        }
+    });
+
+    if (dupeCount > 0) {
+        state.transactions = clean;
+        state.persist(); // Save clean version to cloud
+        console.log(`Auto-cleaned ${dupeCount} duplicates.`);
+        // Optional: showToast(`Fixed: Removed ${dupeCount} duplicates`); 
     }
 };
 
@@ -86,7 +128,7 @@ document.getElementById('export-button').addEventListener('click', () => exportT
 document.getElementById('year-filter').addEventListener('change', () => { UI.renderDashboard(); UI.renderTransactions(); });
 document.getElementById('month-filter').addEventListener('change', () => { UI.renderDashboard(); UI.renderTransactions(); });
 
-// --- Edit Transaction & Batch Logic ---
+// --- Edit Transaction & Logic ---
 document.getElementById('transaction-table').addEventListener('click', (e) => {
     // Edit Button
     if(e.target.classList.contains('edit-btn')) {
@@ -99,31 +141,50 @@ document.getElementById('transaction-table').addEventListener('click', (e) => {
         document.getElementById('modal-category').value = tx.category;
         document.getElementById('edit-modal').classList.remove('hidden');
     }
-    // Reconcile Checkbox Logic (Auto-Save state)
-    if(e.target.type === 'checkbox') {
+    // Reconcile Checkbox Logic
+    if(e.target.type === 'checkbox' && e.target.classList.contains('reconcile-checkbox')) {
         const id = e.target.dataset.id;
         if (id) {
              const tx = state.transactions.find(t => t.id === id);
              if(tx) {
                  tx.reconciled = e.target.checked;
-                 state.persist(); // Auto-save on check
-                 UI.renderDashboard(); // Update dashboard count
+                 state.persist(); 
+                 UI.renderDashboard(); 
              }
         }
     }
 });
 
+// Select All Logic
+const selectAllBox = document.getElementById('select-all-rec');
+if(selectAllBox) {
+    selectAllBox.addEventListener('change', (e) => {
+        const isChecked = e.target.checked;
+        const boxes = document.querySelectorAll('.reconcile-checkbox');
+        boxes.forEach(box => {
+            box.checked = isChecked;
+            const id = box.dataset.id;
+            const tx = state.transactions.find(t => t.id === id);
+            if(tx) tx.reconciled = isChecked;
+        });
+        state.persist();
+        UI.renderDashboard();
+    });
+}
+
 document.getElementById('save-button').addEventListener('click', () => {
     const id = document.getElementById('modal-transaction-id').value;
     const newCat = document.getElementById('modal-category').value;
     const newJob = document.getElementById('modal-job').value;
+    const notes = document.getElementById('modal-notes').value;
     
     const tx = state.transactions.find(t => t.id === id);
     const oldCat = tx.category;
 
-    state.updateTransaction(id, { category: newCat, job: newJob });
+    state.updateTransaction(id, { category: newCat, job: newJob, notes: notes });
     document.getElementById('edit-modal').classList.add('hidden');
 
+    // Batch Update Check
     if (oldCat !== newCat) {
         const similar = state.transactions.filter(t => 
             t.id !== id && 
@@ -162,7 +223,7 @@ document.getElementById('save-button').addEventListener('click', () => {
 });
 document.getElementById('cancel-button').addEventListener('click', () => document.getElementById('edit-modal').classList.add('hidden'));
 
-// --- Category & Rules ---
+// --- Categories & Rules Managers ---
 document.getElementById('add-category-button').addEventListener('click', () => {
     UI.populateCategoryList();
     document.getElementById('category-modal').classList.remove('hidden');
@@ -174,12 +235,21 @@ document.getElementById('add-new-category-btn').addEventListener('click', () => 
         state.categories.sort();
         UI.populateCategoryList();
         document.getElementById('new-category-name').value = '';
+        state.persist();
     }
 });
 document.getElementById('close-category-modal').addEventListener('click', () => {
     document.getElementById('category-modal').classList.add('hidden');
-    state.persist();
     refreshApp();
+});
+// Category Delete Delegation
+document.getElementById('category-list').addEventListener('click', (e) => {
+    if(e.target.classList.contains('del-cat-btn')) {
+        const cat = e.target.dataset.cat;
+        state.categories = state.categories.filter(c => c !== cat);
+        state.persist();
+        UI.populateCategoryList();
+    }
 });
 
 document.getElementById('rules-button').addEventListener('click', () => {
@@ -193,12 +263,22 @@ document.getElementById('add-rule-btn').addEventListener('click', () => {
         state.rules.push({ keyword: key, category: cat });
         UI.populateRulesList();
         document.getElementById('rule-keyword').value = '';
+        state.persist();
     }
 });
 document.getElementById('close-rules-modal').addEventListener('click', () => {
     document.getElementById('rules-modal').classList.add('hidden');
-    state.persist();
 });
+// Rule Delete Delegation
+document.getElementById('rules-list').addEventListener('click', (e) => {
+    if(e.target.classList.contains('del-rule-btn')) {
+        const idx = e.target.dataset.idx;
+        state.rules.splice(idx, 1);
+        state.persist();
+        UI.populateRulesList();
+    }
+});
+
 
 // --- AP/AR Logic ---
 const openAPAR = (type, id = null) => {
@@ -298,21 +378,15 @@ document.getElementById('close-recon-btn').addEventListener('click', () => {
     document.getElementById('reconcile-modal').classList.add('hidden');
 });
 
-
-// --- CSV Import ---
+// --- CSV Import with Deduplication ---
 document.getElementById('csv-file').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if(!file) return;
     
-    const existingSignatures = new Set(
-        state.transactions.map(t => `${t.date}-${t.description}-${t.amount}`)
-    );
-
     Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
         complete: (results) => {
-            let duplicatesCount = 0;
             const newTxs = results.data.map((row, i) => {
                 const date = row['Date'] || row['date'] || new Date().toISOString();
                 const desc = row['Description'] || row['description'] || row['Memo'] || 'No Desc';
@@ -323,12 +397,6 @@ document.getElementById('csv-file').addEventListener('change', (e) => {
                 
                 const cleanDate = typeof date === 'string' ? date : new Date().toISOString();
                 const cleanAmt = parseFloat(amt) || 0;
-                const signature = `${cleanDate}-${desc}-${cleanAmt}`;
-
-                if (existingSignatures.has(signature)) {
-                    duplicatesCount++;
-                    return null;
-                }
 
                 return {
                     id: `tx-${Date.now()}-${i}`,
@@ -343,10 +411,8 @@ document.getElementById('csv-file').addEventListener('change', (e) => {
 
             if (newTxs.length > 0) {
                 state.addTransactions(newTxs);
-                refreshApp();
-                showToast(`Imported ${newTxs.length} items. Skipped ${duplicatesCount} duplicates.`);
-            } else {
-                showToast(`No new items found. Skipped ${duplicatesCount} duplicates.`, true);
+                refreshApp(); // This triggers performAutoCleanup()
+                showToast(`Imported ${newTxs.length} items.`);
             }
         }
     });
@@ -356,8 +422,7 @@ document.getElementById('csv-file').addEventListener('change', (e) => {
 document.getElementById('login-btn').addEventListener('click', loginUser);
 document.getElementById('logout-btn').addEventListener('click', () => { logoutUser(); location.reload(); });
 
-// === EXPOSE STATE FOR CONSOLE DEBUGGING ===
-// This is the line that was missing before!
+// Expose state (just in case)
 window.bookkeeperState = state;
 
 // Start
