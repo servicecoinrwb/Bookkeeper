@@ -26,6 +26,7 @@ export const renderDashboard = () => {
     
     let income = 0;
     let expense = 0;
+    let draws = 0;
     let arTotal = 0;
     let apTotal = 0;
     let unreconciledCount = 0; 
@@ -37,14 +38,21 @@ export const renderDashboard = () => {
         // Simple Math
         if (amt >= 0 && t.category !== 'Transfer') {
             income += amt;
-        } else if (amt < 0 && t.category !== 'Transfer') {
+        } else if (amt < 0 && t.category !== 'Transfer' && t.category !== "Owner's Draw") {
             expense += Math.abs(amt);
         }
 
+        // Owner's Pay (Purple/Indigo Card)
+        if (amt < 0 && t.category === "Owner's Draw") {
+            draws += Math.abs(amt);
+        }
+
+        // Count unreconciled (Purple Card)
         if (t.type === 'transaction' && !t.reconciled) {
             unreconciledCount++;
         }
 
+        // AP/AR Stats
         if (t.status === 'unpaid') {
             if (t.type === 'ar') arTotal += amt;
             if (t.type === 'ap') apTotal += amt;
@@ -59,6 +67,7 @@ export const renderDashboard = () => {
     safeSet('total-ar', formatCurrency(arTotal));
     safeSet('total-ap', formatCurrency(apTotal));
     safeSet('total-unreconciled', unreconciledCount);
+    safeSet('total-draws', formatCurrency(draws));
 
     const netEl = document.getElementById('net-total')?.parentElement;
     if(netEl) {
@@ -81,7 +90,7 @@ export const renderTransactions = () => {
         .filter(t => (!t.type || t.type === 'transaction') && fastFilterByDate(t))
         .sort((a, b) => (a.date < b.date ? 1 : -1));
 
-    const subset = sorted.slice(0, 100); // Limit to 100
+    const subset = sorted.slice(0, 100); // Limit to 100 for perf
     let html = '';
 
     for (let i = 0; i < subset.length; i++) {
@@ -162,6 +171,7 @@ export const renderTaxes = () => {
     let net = 0;
     for(const t of activeTxs) {
         if(t.category === 'Transfer') continue;
+        if(t.amount < 0 && t.category === "Owner's Draw") continue;
         net += t.amount;
     }
 
@@ -169,10 +179,16 @@ export const renderTaxes = () => {
     const rate = rateInput ? rateInput.value / 100 : 0.3;
     const estTax = net > 0 ? net * rate : 0;
     
-    document.getElementById('tax-net-profit').textContent = formatCurrency(net);
-    document.getElementById('tax-total-due').textContent = formatCurrency(estTax);
+    const profitEl = document.getElementById('tax-net-profit');
+    if(profitEl) profitEl.textContent = formatCurrency(net);
     
-    [1,2,3,4].forEach(q => document.getElementById(`tax-q${q}`).textContent = formatCurrency(estTax/4));
+    const dueEl = document.getElementById('tax-total-due');
+    if(dueEl) dueEl.textContent = formatCurrency(estTax);
+    
+    [1,2,3,4].forEach(q => {
+        const el = document.getElementById(`tax-q${q}`);
+        if(el) el.textContent = formatCurrency(estTax/4);
+    });
 };
 
 // --- Reports ---
@@ -198,7 +214,7 @@ export const renderReports = (type) => {
             if(t.amount >= 0) {
                 incomeMap[t.category] = (incomeMap[t.category] || 0) + t.amount;
                 totalInc += t.amount;
-            } else {
+            } else if(t.category !== "Owner's Draw") {
                 expenseMap[t.category] = (expenseMap[t.category] || 0) + Math.abs(t.amount);
                 totalExp += Math.abs(t.amount);
             }
@@ -232,7 +248,7 @@ export const renderGuide = () => {
 };
 
 
-// --- Exports (Fixing the errors) ---
+// --- Exports (Populate Functions) ---
 export const populateCategorySelect = (id) => {
     const s = document.getElementById(id);
     if(s) s.innerHTML = state.categories.map(c => `<option value="${c}">${c}</option>`).join('');
@@ -270,6 +286,3 @@ export const populateDateDropdowns = () => {
             ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m,i) => `<option value="${i+1}">${m}</option>`).join('');
     }
 };
-```
-
-This should perfectly align your code with your HTML and fix the data duplication issue automatically.
