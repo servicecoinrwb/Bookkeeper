@@ -1,5 +1,3 @@
-// js/config.js
-
 export const FIREBASE_CONFIG = {
     apiKey: "AIzaSyBwuxBEU2Yt-QGtCbnyOYf7sEfqjTG0agc",
     authDomain: "bookkeeper-478720.firebaseapp.com",
@@ -25,14 +23,16 @@ export const DEFAULT_CATEGORIES = [
     'Rent/Lease',
     'Utilities',
     'Owner\'s Draw',
-    'Paycheck',
-    'Transfer',
+    'Transfer', 
     'Uncategorized'
 ];
 
 export const DEFAULT_RULES = [
     { keyword: 'Speedway', category: 'Vehicle Expenses (Fuel, Repairs)' },
+    { keyword: 'Shell', category: 'Vehicle Expenses (Fuel, Repairs)' },
+    { keyword: 'BP', category: 'Vehicle Expenses (Fuel, Repairs)' },
     { keyword: 'Home Depot', category: 'COGS - Parts & Materials' },
+    { keyword: 'Lowe\'s', category: 'COGS - Parts & Materials' },
     { keyword: 'Trane', category: 'COGS - Equipment' },
     { keyword: 'Gusto', category: 'Payroll Expenses (Wages & Taxes)' }
 ];
