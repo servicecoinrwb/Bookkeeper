@@ -8,22 +8,40 @@ export const formatCurrency = (amount) => {
 
 export const parseDate = (dateString) => {
     if (!dateString) return null;
+    const parts = dateString.match(/(\d+)/g);
+    if (parts && parts.length === 3) {
+        const [month, day, year] = parts.map(p => parseInt(p, 10));
+        if (month > 0 && month <= 12 && day > 0 && day <= 31) {
+            const fullYear = year < 100 ? 2000 + year : year;
+            return new Date(fullYear, month - 1, day);
+        }
+    }
     const date = new Date(dateString);
     return !isNaN(date.getTime()) ? date : null;
 };
 
+// --- TOAST FIX ---
 export const showToast = (message, isError = false) => {
     const toast = document.getElementById('toast');
-    toast.textContent = message;
+    if (!toast) return;
+
+    // 1. Set Color and Message
     toast.className = `fixed top-5 right-5 py-2 px-4 rounded-lg shadow-md transition-transform duration-300 z-50 ${isError ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`;
-    toast.style.transform = 'translateX(0)';
+    toast.textContent = message;
+
+    // 2. Show it (Slide in)
+    // Use requestAnimationFrame to ensure the browser processes the style change
+    requestAnimationFrame(() => {
+        toast.style.transform = 'translateX(0)';
+    });
+
+    // 3. Hide it (Slide out) after 3 seconds
     setTimeout(() => {
-        toast.style.transform = 'translateX(150%)';
+        toast.style.transform = 'translateX(150%)'; 
     }, 3000);
 };
 
 export const exportToIIF = (transactions) => {
-    // Basic QuickBooks IIF Export
     let content = `!TRNS\tTRNSID\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tDOCNUM\tMEMO\n`;
     content += `!SPL\tSPLID\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tDOCNUM\tMEMO\n`;
     content += `!ENDTRNS\n`;
@@ -47,4 +65,5 @@ export const exportToIIF = (transactions) => {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 };
