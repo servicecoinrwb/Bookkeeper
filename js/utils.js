@@ -25,17 +25,23 @@ export const showToast = (message, isError = false) => {
     const toast = document.getElementById('toast');
     if (!toast) return;
 
-    // 1. Set Color and Message
-    toast.className = `fixed top-5 right-5 py-2 px-4 rounded-lg shadow-md transition-transform duration-300 z-50 ${isError ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`;
+    // 1. Force Reset Style First
+    toast.style.transition = 'none'; // Disable transition for instant reset
+    toast.style.transform = 'translateX(150%)';
+    
+    // 2. Set Content and Color
+    toast.className = `fixed top-5 right-5 py-2 px-4 rounded-lg shadow-md z-50 ${isError ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`;
     toast.textContent = message;
 
-    // 2. Show it (Slide in)
-    // Use requestAnimationFrame to ensure the browser processes the style change
+    // 3. Trigger Animation (Next Frame)
     requestAnimationFrame(() => {
-        toast.style.transform = 'translateX(0)';
+        requestAnimationFrame(() => {
+             toast.style.transition = 'transform 0.3s ease-in-out';
+             toast.style.transform = 'translateX(0)';
+        });
     });
 
-    // 3. Hide it (Slide out) after 3 seconds
+    // 4. Hide it (Slide out) after 3 seconds
     setTimeout(() => {
         toast.style.transform = 'translateX(150%)'; 
     }, 3000);
