@@ -1,71 +1,52 @@
-// js/firebase-service.js
-import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
-import { FIREBASE_CONFIG } from "./config.js";
+import { DEFAULT_CATEGORIES, DEFAULT_RULES } from "./config.js";
+import { saveUserData } from "./firebase-service.js";
 
-// Initialize Firebase
-const app = initializeApp(FIREBASE_CONFIG);
-const auth = getAuth(app);
-const db = getFirestore(app);
-
-// Export auth so app.js can use it
-export { auth };
-
-// --- Auth Functions ---
-export const loginUser = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-        const result = await signInWithPopup(auth, provider);
-        return result.user;
-    } catch (error) {
-        console.error("Login Error:", error);
-        alert("Login failed. See console for details.");
-        throw error;
+class AppState {
+    constructor() {
+        this.transactions = [];
+        this.categories = [...DEFAULT_CATEGORIES];
+        this.rules = [...DEFAULT_RULES];
+        this.currentUser = null;
     }
-};
 
-export const logoutUser = async () => {
-    try {
-        await signOut(auth);
-    } catch (error) {
-        console.error("Logout Error:", error);
+    setData(data) {
+        if (data.transactions) this.transactions = data.transactions;
+        if (data.categories) this.categories = data.categories;
+        if (data.rules) this.rules = data.rules;
     }
-};
 
-// --- Database Functions ---
-export const saveUserData = async (uid, data) => {
-    try {
-        const userDocRef = doc(db, 'users', uid);
-        await setDoc(userDocRef, {
-            data: JSON.stringify(data.transactions),
-            categories: JSON.stringify(data.categories),
-            rules: JSON.stringify(data.rules),
-            lastUpdated: new Date()
-        });
-        console.log("Saved to cloud");
-    } catch (error) {
-        console.error("Save Error:", error);
-        throw error;
+    addTransactions(newTxs) {
+        this.transactions.push(...newTxs);
+        this.persist();
     }
-};
 
-export const loadUserData = async (uid) => {
-    try {
-        const userDocRef = doc(db, 'users', uid);
-        const docSnap = await getDoc(userDocRef);
-        
-        if (docSnap.exists()) {
-            const d = docSnap.data();
-            return {
-                transactions: d.data ? JSON.parse(d.data) : [],
-                categories: d.categories ? JSON.parse(d.categories) : [],
-                rules: d.rules ? JSON.parse(d.rules) : []
-            };
+    updateTransaction(id, updates) {
+        const tx = this.transactions.find(t => t.id === id);
+        if (tx) {
+            Object.assign(tx, updates);
+            this.persist();
         }
-        return null;
-    } catch (error) {
-        console.error("Load Error:", error);
-        return null;
     }
-};
+
+    clear() {
+        this.transactions = [];
+        this.categories = [...DEFAULT_CATEGORIES];
+        localStorage.removeItem('bookkeeperSession');
+    }
+
+    async persist() {
+        if (this.currentUser) {
+            await saveUserData(this.currentUser.uid, {
+                transactions: this.transactions,
+                categories: this.categories,
+                rules: this.rules
+            });
+        } else {
+            localStorage.setItem('bookkeeperSession', JSON.stringify(this.transactions));
+            localStorage.setItem('bookkeeperCategories', JSON.stringify(this.categories));
+            localStorage.setItem('bookkeeperRules', JSON.stringify(this.rules));
+        }
+    }
+}
+
+export const state = new AppState();
