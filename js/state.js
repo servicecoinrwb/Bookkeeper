@@ -1,4 +1,3 @@
-// js/state.js
 import { DEFAULT_CATEGORIES, DEFAULT_RULES } from "./config.js";
 import { saveUserData } from "./firebase-service.js";
 
@@ -45,6 +44,7 @@ class AppState {
         } else {
             localStorage.setItem('bookkeeperSession', JSON.stringify(this.transactions));
             localStorage.setItem('bookkeeperCategories', JSON.stringify(this.categories));
+            localStorage.setItem('bookkeeperRules', JSON.stringify(this.rules));
         }
     }
 }
