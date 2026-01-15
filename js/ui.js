@@ -1,18 +1,21 @@
 import { state } from "./state.js";
 import { formatCurrency } from "./utils.js";
 
-// --- Helpers ---
+// --- Helpers (Internal) ---
 const fastFilterByDate = (tx) => {
     if(!tx.date) return false;
     const ySel = document.getElementById('year-filter').value;
     const mSel = document.getElementById('month-filter').value;
     
+    // Optimization: Don't parse if filters are 'all'
     if((!ySel || ySel === 'all') && (!mSel || mSel === 'all')) return true;
 
+    // Date format is YYYY-MM-DD
     const txYear = tx.date.substring(0, 4); 
     const txMonth = tx.date.substring(5, 7); 
     
     if (ySel && ySel !== 'all' && txYear !== ySel) return false;
+    // Remove leading zero from month string if needed
     if (mSel && mSel !== 'all') {
         const mInt = parseInt(txMonth, 10);
         if(mInt.toString() !== mSel) return false;
@@ -20,13 +23,12 @@ const fastFilterByDate = (tx) => {
     return true;
 };
 
-// --- Dashboard ---
+// --- 1. Dashboard (Simple Math Logic) ---
 export const renderDashboard = () => {
     const activeTxs = state.transactions.filter(t => fastFilterByDate(t));
     
     let income = 0;
     let expense = 0;
-    let draws = 0;
     let arTotal = 0;
     let apTotal = 0;
     let unreconciledCount = 0; 
@@ -35,19 +37,14 @@ export const renderDashboard = () => {
         const t = activeTxs[i];
         const amt = t.amount;
 
-        // Simple Math
+        // Simple Math: Positive is Income, Negative is Expense.
         if (amt >= 0 && t.category !== 'Transfer') {
             income += amt;
-        } else if (amt < 0 && t.category !== 'Transfer' && t.category !== "Owner's Draw") {
+        } else if (amt < 0 && t.category !== 'Transfer') {
             expense += Math.abs(amt);
         }
 
-        // Owner's Pay (Purple/Indigo Card)
-        if (amt < 0 && t.category === "Owner's Draw") {
-            draws += Math.abs(amt);
-        }
-
-        // Count unreconciled (Purple Card)
+        // Count Unreconciled
         if (t.type === 'transaction' && !t.reconciled) {
             unreconciledCount++;
         }
@@ -59,19 +56,21 @@ export const renderDashboard = () => {
         }
     }
 
+    const net = income - expense;
+
+    // Update DOM
     const safeSet = (id, val) => { const el = document.getElementById(id); if(el) el.textContent = val; };
     
     safeSet('total-income', formatCurrency(income));
     safeSet('total-expense', formatCurrency(expense));
-    safeSet('net-total', formatCurrency(income - expense));
+    safeSet('net-total', formatCurrency(net));
     safeSet('total-ar', formatCurrency(arTotal));
     safeSet('total-ap', formatCurrency(apTotal));
-    safeSet('total-unreconciled', unreconciledCount);
-    safeSet('total-draws', formatCurrency(draws));
-
+    safeSet('total-unreconciled', unreconciledCount); // Update the count
+    
+    // Color coding for Net
     const netEl = document.getElementById('net-total')?.parentElement;
     if(netEl) {
-        const net = income - expense;
         if(net < 0) {
             netEl.className = "bg-red-50 border-l-4 border-red-500 text-red-800 p-4 rounded-lg shadow-sm";
         } else {
@@ -80,7 +79,7 @@ export const renderDashboard = () => {
     }
 };
 
-// --- Transactions Table ---
+// --- 2. Transactions Table ---
 export const renderTransactions = () => {
     const tbody = document.getElementById('transaction-table');
     if(!tbody) return;
@@ -90,7 +89,8 @@ export const renderTransactions = () => {
         .filter(t => (!t.type || t.type === 'transaction') && fastFilterByDate(t))
         .sort((a, b) => (a.date < b.date ? 1 : -1));
 
-    const subset = sorted.slice(0, 100); // Limit to 100 for perf
+    // Limit to 100 for speed
+    const subset = sorted.slice(0, 100);
     let html = '';
 
     for (let i = 0; i < subset.length; i++) {
@@ -120,7 +120,7 @@ export const renderTransactions = () => {
     tbody.innerHTML = html;
 };
 
-// --- Jobs ---
+// --- 3. Job Profitability ---
 export const renderJobs = () => {
     const tbody = document.getElementById('job-table');
     if(!tbody) return;
@@ -146,7 +146,7 @@ export const renderJobs = () => {
     tbody.innerHTML = html || '<tr><td colspan="4" class="text-center py-4 text-gray-500">No active jobs.</td></tr>';
 };
 
-// --- AP / AR ---
+// --- 4. AP / AR ---
 export const renderAPAR = (type) => {
     const tbody = document.getElementById(type === 'ar' ? 'ar-table' : 'ap-table');
     if(!tbody) return;
@@ -165,13 +165,12 @@ export const renderAPAR = (type) => {
     tbody.innerHTML = html || '<tr><td colspan="6" class="text-center py-4 text-gray-500">No items found.</td></tr>';
 };
 
-// --- Taxes ---
+// --- 5. Taxes ---
 export const renderTaxes = () => {
     const activeTxs = state.transactions.filter(t => fastFilterByDate(t) && (!t.type || t.type === 'transaction'));
     let net = 0;
     for(const t of activeTxs) {
         if(t.category === 'Transfer') continue;
-        if(t.amount < 0 && t.category === "Owner's Draw") continue;
         net += t.amount;
     }
 
@@ -191,7 +190,7 @@ export const renderTaxes = () => {
     });
 };
 
-// --- Reports ---
+// --- 6. Reports ---
 export const renderReports = (type) => {
     ['pl', 'vendors', 'ar-aging', 'ap-aging'].forEach(t => {
         const div = document.getElementById(`report-${t}-content`);
@@ -214,7 +213,7 @@ export const renderReports = (type) => {
             if(t.amount >= 0) {
                 incomeMap[t.category] = (incomeMap[t.category] || 0) + t.amount;
                 totalInc += t.amount;
-            } else if(t.category !== "Owner's Draw") {
+            } else {
                 expenseMap[t.category] = (expenseMap[t.category] || 0) + Math.abs(t.amount);
                 totalExp += Math.abs(t.amount);
             }
@@ -234,7 +233,7 @@ export const renderReports = (type) => {
     }
 };
 
-// --- Guide ---
+// --- 7. Guide ---
 export const renderGuide = () => {
     const container = document.getElementById('accordion-container');
     if(!container || container.children.length > 0) return; 
@@ -248,12 +247,15 @@ export const renderGuide = () => {
 };
 
 
-// --- Exports (Populate Functions) ---
+// --- Exports (Fixing the errors) ---
+
+// Populate Dropdowns
 export const populateCategorySelect = (id) => {
     const s = document.getElementById(id);
     if(s) s.innerHTML = state.categories.map(c => `<option value="${c}">${c}</option>`).join('');
 };
 
+// Populate Manage Categories List
 export const populateCategoryList = () => {
     const el = document.getElementById('category-list');
     if(el) {
@@ -263,6 +265,7 @@ export const populateCategoryList = () => {
     }
 };
 
+// Populate Rules List
 export const populateRulesList = () => {
     const el = document.getElementById('rules-list');
     if(el) {
@@ -272,6 +275,7 @@ export const populateRulesList = () => {
     }
 };
 
+// Populate Year/Month Filters
 export const populateDateDropdowns = () => {
     if (state.transactions.length === 0) return;
     const years = new Set();
