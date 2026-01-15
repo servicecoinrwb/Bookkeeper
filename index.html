@@ -18,14 +18,16 @@
         }
     </script>
     <style>
-        body { background-color: #f8fafc; font-family: sans-serif; }
-        .fade-enter { animation: fadeIn 0.3s ease-in-out; }
+        body { background-color: #f1f5f9; font-family: sans-serif; }
+        .fade-enter { animation: fadeIn 0.2s ease-in-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        /* Distinct Selects */
+        .select-bold { background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2.5rem; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     </style>
 </head>
-<body class="text-slate-800 h-screen flex overflow-hidden bg-slate-50">
+<body class="text-slate-800 h-screen flex overflow-hidden bg-slate-100">
 
     <!-- Sidebar -->
     <aside class="w-64 bg-slate-900 text-white flex-col hidden md:flex shrink-0 z-30">
@@ -45,7 +47,6 @@
             <button onclick="App.ui.switchTab('guide')" id="nav-guide" class="nav-item w-full flex items-center gap-3 px-4 py-3 text-sm font-medium rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"><i data-lucide="book-open" class="w-5 h-5"></i> Guide</button>
         </nav>
 
-        <!-- RESTORED: External Links -->
         <div class="px-4 py-3 bg-slate-800/50 border-t border-slate-700">
             <p class="text-xs font-semibold text-slate-500 mb-2 uppercase">Quick Links</p>
             <div class="grid grid-cols-2 gap-2">
@@ -57,37 +58,57 @@
         </div>
 
         <div class="p-4 border-t border-slate-800">
-            <button id="login-btn" class="w-full bg-white text-slate-900 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-200">Sign In</button>
-            <div id="user-profile" class="hidden flex items-center gap-3">
-                <img id="user-avatar" class="w-8 h-8 rounded-full border border-slate-600">
-                <div class="flex-1 min-w-0">
-                    <p id="user-name" class="text-sm font-medium text-white truncate">User</p>
-                    <button id="logout-btn" class="text-xs text-red-400 hover:text-red-300">Sign Out</button>
+            <div id="auth-section">
+                <button id="login-btn" class="w-full bg-white text-slate-900 px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-200">Sign In</button>
+                <div id="user-profile" class="hidden flex items-center gap-3">
+                    <img id="user-avatar" src="" class="w-8 h-8 rounded-full ring-2 ring-slate-700">
+                    <div class="flex-1 min-w-0">
+                        <p id="user-name" class="text-sm font-medium text-white truncate">User</p>
+                        <button id="logout-btn" class="text-xs text-red-400 hover:text-red-300">Sign Out</button>
+                    </div>
                 </div>
             </div>
         </div>
     </aside>
 
     <main class="flex-1 flex flex-col h-screen overflow-hidden relative w-full">
-        <!-- Header (White Sticky) -->
-        <header class="bg-white/80 backdrop-blur-md border-b border-slate-200 z-20 sticky top-0 w-full">
+        <!-- Header (Solid White) -->
+        <header class="bg-white border-b border-slate-200 z-20 sticky top-0 w-full shadow-sm">
             <div class="px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
                 <div class="flex flex-col">
                     <h2 id="page-title" class="text-lg font-bold text-slate-800 leading-tight">Dashboard</h2>
                     <span id="cloud-status" class="hidden text-[10px] uppercase font-bold tracking-wider text-brand-600 flex items-center gap-1"><i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Syncing...</span>
                 </div>
-                <div class="flex items-center gap-2 sm:gap-4">
-                    <div class="hidden sm:flex items-center bg-slate-100 rounded-lg p-1 border border-slate-200 shadow-inner">
-                        <select id="month-filter" class="bg-transparent border-none text-xs font-semibold text-slate-600 py-1.5 px-3 rounded cursor-pointer outline-none"></select>
-                        <div class="w-px h-4 bg-slate-300 mx-1"></div>
-                        <select id="year-filter" class="bg-transparent border-none text-xs font-semibold text-slate-600 py-1.5 px-3 rounded cursor-pointer outline-none"></select>
+                
+                <!-- NEW Date Filters: High Contrast -->
+                <div class="flex items-center gap-2 sm:gap-3">
+                    <div class="hidden sm:flex items-center gap-2">
+                        <div class="relative">
+                            <select id="month-filter" class="select-bold appearance-none bg-white border border-slate-300 text-slate-700 text-sm font-bold py-2 pl-3 pr-8 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 hover:border-brand-500 transition-colors"></select>
+                        </div>
+                        <div class="relative">
+                            <select id="year-filter" class="select-bold appearance-none bg-white border border-slate-300 text-slate-700 text-sm font-bold py-2 pl-3 pr-8 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 hover:border-brand-500 transition-colors"></select>
+                        </div>
                     </div>
-                    <button onclick="document.getElementById('csv-file').click()" class="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-3 sm:px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm">
-                        <i data-lucide="upload-cloud" class="w-4 h-4"></i><span class="hidden sm:inline">Import</span>
+
+                    <div class="h-8 w-px bg-slate-200 mx-2 hidden sm:block"></div>
+
+                    <button onclick="document.getElementById('csv-file').click()" class="flex items-center gap-2 bg-slate-900 hover:bg-slate-800 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm active:scale-95">
+                        <i data-lucide="upload-cloud" class="w-4 h-4"></i>
+                        <span class="hidden sm:inline">Import</span>
                     </button>
                     <input id="csv-file" type="file" class="hidden" accept=".csv" />
+                    
                     <button id="save-session-btn" class="flex items-center justify-center bg-white border border-slate-200 text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200 w-10 h-10 rounded-lg transition-all shadow-sm" title="Save Session"><i data-lucide="save" class="w-5 h-5"></i></button>
                     <button id="clear-session-btn" class="flex items-center justify-center bg-white border border-slate-200 text-red-600 hover:bg-red-50 hover:border-red-200 w-10 h-10 rounded-lg transition-all shadow-sm" title="Clear Data"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                </div>
+            </div>
+            
+            <!-- Mobile Filters (Visible only on small screens) -->
+            <div class="sm:hidden border-t border-slate-100 p-2 flex justify-center bg-slate-50">
+                 <div class="flex items-center gap-2 w-full max-w-xs">
+                    <select id="mobile-month-filter" class="flex-1 bg-white border border-slate-300 text-slate-700 text-sm font-semibold py-2 rounded-lg text-center"></select>
+                    <select id="mobile-year-filter" class="flex-1 bg-white border border-slate-300 text-slate-700 text-sm font-semibold py-2 rounded-lg text-center"></select>
                 </div>
             </div>
         </header>
@@ -97,10 +118,10 @@
             <!-- Dashboard -->
             <div id="view-dashboard" class="space-y-6 fade-enter">
                 <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
-                    <div class="bg-white p-5 rounded-xl border shadow-sm"><p class="text-sm text-slate-500">Income</p><h3 id="dash-income" class="text-2xl font-bold text-slate-900">$0.00</h3></div>
-                    <div class="bg-white p-5 rounded-xl border shadow-sm"><p class="text-sm text-slate-500">Expenses</p><h3 id="dash-expense" class="text-2xl font-bold text-slate-900">$0.00</h3></div>
-                    <div class="bg-white p-5 rounded-xl border shadow-sm"><p class="text-sm text-slate-500">Net Profit</p><h3 id="dash-net" class="text-2xl font-bold">$0.00</h3></div>
-                    <div class="bg-white p-5 rounded-xl border shadow-sm"><p class="text-sm text-slate-500">Unpaid Invoices</p><h3 id="dash-ar" class="text-2xl font-bold text-slate-900">$0.00</h3></div>
+                    <div class="bg-white p-5 rounded-xl border shadow-sm"><p class="text-sm text-slate-500 font-medium">Total Income</p><h3 id="dash-income" class="text-2xl font-bold text-slate-900 mt-1">$0.00</h3></div>
+                    <div class="bg-white p-5 rounded-xl border shadow-sm"><p class="text-sm text-slate-500 font-medium">Total Expenses</p><h3 id="dash-expense" class="text-2xl font-bold text-slate-900 mt-1">$0.00</h3></div>
+                    <div class="bg-white p-5 rounded-xl border shadow-sm"><p class="text-sm text-slate-500 font-medium">Net Profit</p><h3 id="dash-net" class="text-2xl font-bold text-slate-900 mt-1">$0.00</h3></div>
+                    <div class="bg-white p-5 rounded-xl border shadow-sm"><p class="text-sm text-slate-500 font-medium">Unpaid Invoices</p><h3 id="dash-ar" class="text-2xl font-bold text-slate-900 mt-1">$0.00</h3></div>
                 </div>
                 <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                     <div class="bg-white p-5 rounded-xl border shadow-sm xl:col-span-2"><h4 class="font-bold text-slate-700 mb-4">Financial Overview</h4><div class="h-64"><canvas id="mainChart"></canvas></div></div>
@@ -108,25 +129,25 @@
                     <div class="bg-white p-5 rounded-xl border shadow-sm xl:col-span-2"><h4 class="font-bold text-slate-700 mb-4">Net Profit Trend</h4><div class="h-64"><canvas id="profitChart"></canvas></div></div>
                     <div class="bg-white p-5 rounded-xl border shadow-sm"><h4 class="font-bold text-slate-700 mb-4">Expense Breakdown</h4><div class="h-64"><canvas id="expenseChart"></canvas></div></div>
                 </div>
-                <div id="upload-prompt" class="hidden text-center p-10"><p class="text-slate-500">No data. Import a CSV to get started.</p></div>
+                <div id="upload-prompt" class="hidden text-center p-12"><p class="text-slate-500">No data available. Please import a CSV.</p></div>
             </div>
 
             <!-- Transactions -->
             <div id="view-transactions" class="hidden space-y-4 fade-enter">
-                <div class="flex justify-between items-center">
-                    <input type="text" id="tx-search" placeholder="Search..." class="border p-2 rounded w-64 text-sm">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <input type="text" id="tx-search" placeholder="Search description, category..." class="border border-slate-300 p-2 rounded-lg w-full sm:w-64 text-sm focus:ring-2 focus:ring-brand-500 outline-none shadow-sm">
                     <div class="flex gap-2">
-                        <button onclick="App.ui.openModal('reconcile-modal')" class="bg-white border text-slate-700 px-3 py-1.5 rounded-lg text-sm hover:bg-slate-50 shadow-sm">⚖️ Reconcile</button>
-                        <button onclick="App.ui.openModal('rules-modal')" class="bg-white border text-slate-700 px-3 py-1.5 rounded-lg text-sm hover:bg-slate-50 shadow-sm">⚙️ Rules</button>
+                        <button onclick="App.ui.openModal('reconcile-modal')" class="bg-white border text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-50 shadow-sm">⚖️ Reconcile</button>
+                        <button onclick="App.ui.openModal('rules-modal')" class="bg-white border text-slate-700 px-3 py-1.5 rounded-lg text-sm font-medium hover:bg-slate-50 shadow-sm">⚙️ Rules</button>
                         <button id="btn-export" class="bg-white border text-slate-700 px-3 py-1.5 rounded-lg text-sm hover:bg-slate-50 shadow-sm"><i data-lucide="download" class="w-4 h-4 inline"></i> Export IIF</button>
                     </div>
                 </div>
-                <div class="bg-white rounded-xl border shadow-sm overflow-hidden">
+                <div class="bg-white rounded-xl border shadow-sm overflow-hidden overflow-x-auto">
                     <table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50"><tr><th class="px-6 py-3 text-left">Rec</th><th class="px-6 py-3 text-left">Date</th><th class="px-6 py-3 text-left">Description</th><th class="px-6 py-3 text-left">Amount</th><th class="px-6 py-3 text-left">Category</th><th class="px-6 py-3 text-right">Action</th></tr></thead><tbody id="tx-table-body" class="bg-white divide-y divide-slate-200"></tbody></table>
                 </div>
             </div>
 
-            <!-- RESTORED: Reports with Sub-Tabs -->
+            <!-- Reports (Restored Tabs) -->
             <div id="view-reports" class="hidden space-y-6 fade-enter">
                 <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-1">
                     <button onclick="App.ui.switchReport('pl')" id="rep-tab-pl" class="rep-tab text-sm font-medium px-4 py-2 text-brand-600 border-b-2 border-brand-600 bg-brand-50/50 rounded-t-lg">Profit & Loss</button>
@@ -140,57 +161,67 @@
                 <div id="report-vendors" class="report-view hidden bg-white p-8 rounded-xl shadow-sm border border-slate-200"></div>
             </div>
 
-            <!-- RESTORED: Guide View -->
+            <!-- Guide View -->
             <div id="view-guide" class="hidden fade-enter bg-white p-8 rounded-xl shadow-sm border border-slate-200 max-w-4xl mx-auto">
                 <h3 class="text-xl font-bold mb-6">HVAC Bookkeeping Guide</h3>
                 <div id="guide-content" class="space-y-4"></div>
             </div>
 
             <!-- Other Views -->
-    <!-- 2. Rules Modal (Updated with Manage Categories button) -->
-    <div id="rules-modal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4">
-        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 flex flex-col max-h-[80vh]">
-            <div class="flex justify-between items-center mb-4">
-                <h3 class="font-bold text-lg">Categorization Rules</h3>
-                <button onclick="App.ui.openModal('category-modal')" class="text-xs text-brand-600 font-medium hover:underline">Manage Categories</button>
+            <div id="view-jobs" class="hidden fade-enter"><div id="jobs-container" class="bg-white rounded-xl shadow-sm border overflow-hidden"></div></div>
+            <div id="view-ar" class="hidden fade-enter">
+                <div class="mb-4"><button onclick="App.handlers.openApArModal('ar')" class="bg-brand-600 text-white px-4 py-2 rounded shadow-sm hover:bg-brand-700">Add Invoice</button></div>
+                <div id="ar-container" class="bg-white rounded-xl shadow-sm border overflow-hidden"></div>
             </div>
-            
-            <div class="flex gap-2 mb-4">
-                <input id="rule-keyword" type="text" placeholder="If text contains..." class="border p-2 rounded flex-1 text-sm">
-                <select id="rule-category" class="border p-2 rounded flex-1 text-sm"></select>
-                <button id="btn-add-rule" class="bg-brand-600 text-white px-3 py-2 rounded text-sm hover:bg-brand-700">Add Rule</button>
+            <div id="view-ap" class="hidden fade-enter">
+                <div class="mb-4"><button onclick="App.handlers.openApArModal('ap')" class="bg-brand-600 text-white px-4 py-2 rounded shadow-sm hover:bg-brand-700">Add Bill</button></div>
+                <div id="ap-container" class="bg-white rounded-xl shadow-sm border overflow-hidden"></div>
             </div>
-            
-            <div class="bg-slate-50 p-2 rounded border border-slate-100 flex-1 overflow-y-auto">
-                <div id="rules-list" class="space-y-2">
-                    <!-- Rules injected here -->
+            <div id="view-taxes" class="hidden fade-enter">
+                <div class="bg-white p-6 rounded-xl shadow-sm border space-y-6">
+                    <div class="flex items-center gap-4 border-b pb-4"><h3 class="font-bold text-lg">Tax Estimator</h3><div class="flex items-center gap-2"><label class="text-sm">Tax Rate (%):</label><input type="number" id="tax-rate-input" value="30" class="border rounded w-16 p-1 text-right"></div></div>
+                    <div class="grid grid-cols-2 gap-4"><div class="p-4 bg-slate-50 rounded"><p class="text-sm text-slate-500">Taxable Net Profit</p><h3 id="tax-profit" class="text-xl font-bold">$0.00</h3></div><div class="p-4 bg-indigo-50 rounded border border-indigo-100"><p class="text-sm text-indigo-600">Estimated Tax Due</p><h3 id="tax-due" class="text-xl font-bold text-indigo-700">$0.00</h3></div></div>
+                    <div><h4 class="font-bold mb-2">Quarterly Payments</h4><table class="w-full text-sm text-left"><thead class="bg-slate-50"><tr><th class="p-2">Quarter</th><th class="p-2">Deadline</th><th class="p-2 text-right">Amount</th></tr></thead><tbody class="divide-y"><tr><td class="p-2">Q1 (Jan-Mar)</td><td class="p-2 text-slate-500">April 15</td><td id="tax-q1" class="p-2 text-right font-medium">$0.00</td></tr><tr><td class="p-2">Q2 (Apr-May)</td><td class="p-2 text-slate-500">June 15</td><td id="tax-q2" class="p-2 text-right font-medium">$0.00</td></tr><tr><td class="p-2">Q3 (Jun-Aug)</td><td class="p-2 text-slate-500">Sept 15</td><td id="tax-q3" class="p-2 text-right font-medium">$0.00</td></tr><tr><td class="p-2">Q4 (Sep-Dec)</td><td class="p-2 text-slate-500">Jan 15</td><td id="tax-q4" class="p-2 text-right font-medium">$0.00</td></tr></tbody></table></div>
                 </div>
             </div>
-            
-            <div class="flex justify-end mt-4">
-                <button onclick="App.ui.closeModal('rules-modal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded">Close</button>
-            </div>
+        </div>
+    </main>
+
+    <!-- 1. Edit Transaction Modal -->
+    <div id="edit-modal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
+            <h3 class="font-bold text-lg">Edit Transaction</h3>
+            <input type="hidden" id="modal-tx-id">
+            <input list="category-list" id="modal-category" class="w-full border p-2 rounded" placeholder="Category">
+            <datalist id="category-list"></datalist>
+            <input list="job-list" id="modal-job" class="w-full border p-2 rounded" placeholder="Job Name">
+            <datalist id="job-list"></datalist>
+            <textarea id="modal-notes" class="w-full border p-2 rounded" placeholder="Notes" rows="3"></textarea>
+            <div class="flex justify-end gap-2"><button onclick="App.ui.closeModal('edit-modal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded">Cancel</button><button id="btn-save-tx" class="px-4 py-2 bg-brand-600 text-white rounded hover:bg-brand-700">Save</button></div>
         </div>
     </div>
 
-    <!-- 3. NEW: Category Management Modal -->
+    <!-- 2. Rules Modal (With Manage Categories) -->
+    <div id="rules-modal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-lg p-6 flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center mb-4"><h3 class="font-bold text-lg">Rules</h3><button onclick="App.ui.openModal('category-modal')" class="text-xs text-brand-600 hover:underline">Manage Categories</button></div>
+            <div class="flex gap-2 mb-4"><input id="rule-keyword" type="text" placeholder="Text..." class="border p-2 rounded flex-1 text-sm"><select id="rule-category" class="border p-2 rounded flex-1 text-sm"></select><button id="btn-add-rule" class="bg-brand-600 text-white px-3 py-2 rounded text-sm">Add</button></div>
+            <div id="rules-list" class="flex-1 overflow-y-auto space-y-2 border-t pt-2"></div>
+            <div class="flex justify-end mt-4"><button onclick="App.ui.closeModal('rules-modal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded">Close</button></div>
+        </div>
+    </div>
+
+    <!-- 3. Category Modal -->
     <div id="category-modal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 flex flex-col max-h-[70vh]">
             <h3 class="font-bold text-lg mb-4">Manage Categories</h3>
-            <div class="flex gap-2 mb-4">
-                <input id="new-cat-name" type="text" placeholder="New Category Name" class="border p-2 rounded flex-1 text-sm">
-                <button id="btn-add-cat" class="bg-brand-600 text-white px-3 py-2 rounded text-sm hover:bg-brand-700">Add</button>
-            </div>
-            <div id="category-list-manage" class="flex-1 overflow-y-auto space-y-1 pr-2">
-                <!-- Categories injected here -->
-            </div>
-            <div class="flex justify-end mt-4 pt-4 border-t">
-                <button onclick="App.ui.closeModal('category-modal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded">Done</button>
-            </div>
+            <div class="flex gap-2 mb-4"><input id="new-cat-name" type="text" placeholder="Name" class="border p-2 rounded flex-1 text-sm"><button id="btn-add-cat" class="bg-brand-600 text-white px-3 py-2 rounded text-sm">Add</button></div>
+            <div id="category-list-manage" class="flex-1 overflow-y-auto space-y-1 pr-2"></div>
+            <div class="flex justify-end mt-4 pt-4 border-t"><button onclick="App.ui.closeModal('category-modal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded">Done</button></div>
         </div>
     </div>
 
-    <!-- Reconcile Modal (Keep existing) -->
+    <!-- 4. Reconcile Modal -->
     <div id="reconcile-modal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 space-y-4">
             <h3 class="font-bold text-lg">Reconcile</h3>
@@ -200,45 +231,35 @@
         </div>
     </div>
 
-    <!-- 4. RESTORED: AP/AR Modal (Add Bill/Invoice) -->
+    <!-- 5. AP/AR Modal -->
     <div id="ap-ar-modal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
-            <h3 id="ap-ar-title" class="font-bold text-lg">Add New Item</h3>
-            <input type="hidden" id="ap-ar-id">
-            <input type="hidden" id="ap-ar-type">
+            <h3 id="ap-ar-title" class="font-bold text-lg">Add Item</h3>
+            <input type="hidden" id="ap-ar-id"><input type="hidden" id="ap-ar-type">
             <div><label id="ap-ar-party-label" class="text-xs font-bold text-slate-500 uppercase">Party</label><input type="text" id="ap-ar-party" class="w-full border p-2 rounded"></div>
             <div><label class="text-xs font-bold text-slate-500 uppercase">Inv/Bill #</label><input type="text" id="ap-ar-number" class="w-full border p-2 rounded"></div>
-            <div class="grid grid-cols-2 gap-4">
-                <div><label class="text-xs font-bold text-slate-500 uppercase">Date</label><input type="date" id="ap-ar-date" class="w-full border p-2 rounded"></div>
-                <div><label class="text-xs font-bold text-slate-500 uppercase">Amount</label><input type="number" step="0.01" id="ap-ar-amount" class="w-full border p-2 rounded"></div>
-            </div>
+            <div class="grid grid-cols-2 gap-4"><div><label class="text-xs font-bold text-slate-500 uppercase">Date</label><input type="date" id="ap-ar-date" class="w-full border p-2 rounded"></div><div><label class="text-xs font-bold text-slate-500 uppercase">Amount</label><input type="number" step="0.01" id="ap-ar-amount" class="w-full border p-2 rounded"></div></div>
             <div class="flex justify-end gap-2"><button onclick="App.ui.closeModal('ap-ar-modal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded">Cancel</button><button id="btn-save-apar" class="px-4 py-2 bg-brand-600 text-white rounded hover:bg-brand-700">Save</button></div>
         </div>
     </div>
 
-    <!-- 5. RESTORED: Batch Update Modal -->
+    <!-- 6. Batch Update Modal -->
     <div id="batch-modal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4 text-center">
             <div class="mx-auto bg-indigo-100 p-3 rounded-full w-12 h-12 flex items-center justify-center"><i data-lucide="zap" class="text-indigo-600"></i></div>
             <h3 class="font-bold text-lg">Apply to Similar Transactions?</h3>
             <p id="batch-msg" class="text-sm text-slate-500"></p>
-            <div class="flex justify-center gap-2 mt-4">
-                <button id="btn-batch-no" class="px-4 py-2 text-slate-600 border rounded hover:bg-slate-50">No, Just This One</button>
-                <button id="btn-batch-yes" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Yes, Apply All</button>
-            </div>
+            <div class="flex justify-center gap-2 mt-4"><button id="btn-batch-no" class="px-4 py-2 text-slate-600 border rounded hover:bg-slate-50">No, Just This One</button><button id="btn-batch-yes" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">Yes, Apply All</button></div>
         </div>
     </div>
 
-    <!-- 6. RESTORED: Confirmation Modal -->
+    <!-- 7. Confirm Modal -->
     <div id="confirm-modal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-sm p-6 text-center space-y-4">
             <div class="mx-auto bg-red-100 p-3 rounded-full w-12 h-12 flex items-center justify-center"><i data-lucide="alert-triangle" class="text-red-600"></i></div>
             <h3 class="font-bold text-lg text-red-700">Clear All Data?</h3>
-            <p class="text-sm text-slate-500">This action cannot be undone. All local and cloud data for this session will be wiped.</p>
-            <div class="flex justify-center gap-2">
-                <button onclick="App.ui.closeModal('confirm-modal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded">Cancel</button>
-                <button id="btn-confirm-clear" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Delete Everything</button>
-            </div>
+            <p class="text-sm text-slate-500">This action cannot be undone.</p>
+            <div class="flex justify-center gap-2"><button onclick="App.ui.closeModal('confirm-modal')" class="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded">Cancel</button><button id="btn-confirm-clear" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">Delete</button></div>
         </div>
     </div>
 
