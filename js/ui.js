@@ -7,7 +7,7 @@ export const UI = {
 
     init() {
         lucide.createIcons();
-        this.renderDateFilters(); // Fixed: Matches the method name defined below
+        this.renderDateFilters();
         this.setupCharts();
         this.updateDashboard();
         this.populateRuleCategories();
@@ -66,108 +66,61 @@ export const UI = {
 
         document.getElementById('dash-income').textContent = Utils.formatCurrency(income);
         document.getElementById('dash-expense').textContent = Utils.formatCurrency(Math.abs(expense));
-        document.getElementById('dash-net').textContent = Utils.formatCurrency(net);
-        document.getElementById('dash-ar').textContent = Utils.formatCurrency(ar);
-        
         const netEl = document.getElementById('dash-net');
-        netEl.className = `text-2xl font-bold ${net >= 0 ? 'text-emerald-600' : 'text-red-600'}`;
+        netEl.textContent = Utils.formatCurrency(net);
+        netEl.className = `text-2xl font-bold mt-1 ${net >= 0 ? 'text-emerald-600' : 'text-red-600'}`;
+        document.getElementById('dash-ar').textContent = Utils.formatCurrency(ar);
 
         document.getElementById('upload-prompt').classList.toggle('hidden', txs.length > 0);
         this.updateCharts(txs);
     },
 
     setupCharts() {
-        // Helper to safely create charts only if the canvas exists
         const createChart = (id, type, options = {}) => {
             const el = document.getElementById(id);
             if (!el) return null;
-            return new Chart(el.getContext('2d'), { 
-                type, 
-                data: { labels: [], datasets: [] }, 
-                options: { responsive: true, maintainAspectRatio: false, ...options } 
-            });
+            return new Chart(el.getContext('2d'), { type, data: { labels: [], datasets: [] }, options: { responsive: true, maintainAspectRatio: false, ...options } });
         };
-
         this.charts.main = createChart('mainChart', 'bar');
-        this.charts.profit = createChart('profitChart', 'line', { 
-            plugins: { legend: { display: false }, title: { display: true, text: 'Net Profit Trend' } } 
-        });
-        this.charts.income = createChart('incomeChart', 'pie', { 
-            plugins: { legend: { position: 'right' }, title: { display: true, text: 'Income Sources' } } 
-        });
-        this.charts.expense = createChart('expenseChart', 'doughnut', { 
-            plugins: { legend: { position: 'right' }, title: { display: true, text: 'Expense Breakdown' } } 
-        });
+        this.charts.profit = createChart('profitChart', 'line', { plugins: { legend: { display: false }, title: { display: true, text: 'Net Profit Trend' } } });
+        this.charts.income = createChart('incomeChart', 'pie', { plugins: { legend: { position: 'right' }, title: { display: true, text: 'Income Sources' } } });
+        this.charts.expense = createChart('expenseChart', 'doughnut', { plugins: { legend: { position: 'right' }, title: { display: true, text: 'Expense Breakdown' } } });
     },
 
     updateCharts(txs) {
-        // 1. Prepare Monthly Data (for Bar & Line charts)
         const monthlyData = {};
         txs.forEach(t => {
             const month = new Date(t.date).toLocaleString('default', { month: 'short' });
             if(!monthlyData[month]) monthlyData[month] = { income: 0, expense: 0 };
             if(t.amount > 0 && t.category !== 'Transfer') monthlyData[month].income += t.amount;
-            if(t.amount < 0 && t.category !== 'Transfer' && t.category !== "Owner's Draw") monthlyData[month].expense += Math.abs(t.amount);
+            if(t.amount < 0 && t.category !== 'Transfer') monthlyData[month].expense += Math.abs(t.amount);
         });
         const labels = Object.keys(monthlyData).reverse();
 
-        // 2. Update Main Bar Chart (Income vs Expense)
         if (this.charts.main) {
             this.charts.main.data = {
                 labels: labels,
-                datasets: [
-                    { label: 'Income', data: labels.map(l => monthlyData[l].income), backgroundColor: '#10b981' },
-                    { label: 'Expenses', data: labels.map(l => monthlyData[l].expense), backgroundColor: '#ef4444' }
-                ]
+                datasets: [ { label: 'Income', data: labels.map(l => monthlyData[l].income), backgroundColor: '#10b981' }, { label: 'Expenses', data: labels.map(l => monthlyData[l].expense), backgroundColor: '#ef4444' } ]
             };
             this.charts.main.update();
         }
-
-        // 3. Update Profit Trend Line Chart
         if (this.charts.profit) {
             this.charts.profit.data = {
                 labels: labels,
-                datasets: [{
-                    label: 'Net Profit',
-                    data: labels.map(l => monthlyData[l].income - monthlyData[l].expense),
-                    borderColor: '#3b82f6',
-                    backgroundColor: '#3b82f6',
-                    tension: 0.3,
-                    fill: false
-                }]
+                datasets: [{ label: 'Net Profit', data: labels.map(l => monthlyData[l].income - monthlyData[l].expense), borderColor: '#3b82f6', backgroundColor: '#3b82f6', tension: 0.3, fill: false }]
             };
             this.charts.profit.update();
         }
-
-        // 4. Update Income Breakdown (Pie)
         if (this.charts.income) {
             const incomeCats = {};
-            txs.filter(t => t.amount > 0 && t.category !== 'Transfer').forEach(t => {
-                incomeCats[t.category] = (incomeCats[t.category] || 0) + t.amount;
-            });
-            this.charts.income.data = {
-                labels: Object.keys(incomeCats),
-                datasets: [{
-                    data: Object.values(incomeCats),
-                    backgroundColor: ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#065f46']
-                }]
-            };
+            txs.filter(t => t.amount > 0 && t.category !== 'Transfer').forEach(t => { incomeCats[t.category] = (incomeCats[t.category] || 0) + t.amount; });
+            this.charts.income.data = { labels: Object.keys(incomeCats), datasets: [{ data: Object.values(incomeCats), backgroundColor: ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#065f46'] }] };
             this.charts.income.update();
         }
-
-        // 5. Update Expense Breakdown (Doughnut)
         if (this.charts.expense) {
             const expenseCats = {};
-            txs.filter(t => t.amount < 0 && t.category !== 'Transfer' && t.category !== "Owner's Draw").forEach(t => {
-                expenseCats[t.category] = (expenseCats[t.category] || 0) + Math.abs(t.amount);
-            });
-            this.charts.expense.data = {
-                labels: Object.keys(expenseCats),
-                datasets: [{
-                    data: Object.values(expenseCats),
-                    backgroundColor: ['#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#eab308', '#22c55e', '#f43f5e', '#a855f7']
-                }]
-            };
+            txs.filter(t => t.amount < 0 && t.category !== 'Transfer' && t.category !== "Owner's Draw").forEach(t => { expenseCats[t.category] = (expenseCats[t.category] || 0) + Math.abs(t.amount); });
+            this.charts.expense.data = { labels: Object.keys(expenseCats), datasets: [{ data: Object.values(expenseCats), backgroundColor: ['#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#eab308', '#22c55e', '#f43f5e', '#a855f7'] }] };
             this.charts.expense.update();
         }
     },
@@ -188,7 +141,6 @@ export const UI = {
             </tr>
         `).join('') || '<tr><td colspan="6" class="p-6 text-center text-slate-500">No transactions.</td></tr>';
 
-        // Bind events
         tbody.querySelectorAll('.edit-btn').forEach(b => b.addEventListener('click', e => Handlers.editTransaction(e.target.dataset.id)));
         tbody.querySelectorAll('.reconcile-checkbox').forEach(b => b.addEventListener('change', e => Handlers.toggleReconcile(e.target.dataset.id)));
     },
@@ -220,7 +172,6 @@ export const UI = {
 
     renderTaxes() {
         const txs = State.data.filter(d => d.type === 'transaction'); // Taxes usually annual, ignore filters
-        // Only count valid income/expense for taxes (exclude draws/transfers)
         let taxableProfit = 0;
         txs.forEach(t => {
             if(t.category === 'Transfer') return;
@@ -284,10 +235,23 @@ export const UI = {
     },
 
     renderDateFilters() {
+        const years = [...new Set(State.data.map(d => new Date(d.date).getFullYear()))].filter(y => !isNaN(y)).sort().reverse();
+        const yearHTML = '<option value="all">All Years</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
+        
+        const monthHTML = '<option value="all">All Months</option>' + 
+            ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']
+            .map((m, i) => `<option value="${i+1}">${m}</option>`).join('');
+
+        // Desktop Inputs
         const yearSelect = document.getElementById('year-filter');
         const monthSelect = document.getElementById('month-filter');
-        const years = [...new Set(State.data.map(d => new Date(d.date).getFullYear()))].filter(y => !isNaN(y)).sort().reverse();
-        yearSelect.innerHTML = '<option value="all">All Years</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
-        monthSelect.innerHTML = '<option value="all">All Months</option>' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => `<option value="${i+1}">${m}</option>`).join('');
+        if(yearSelect) yearSelect.innerHTML = yearHTML;
+        if(monthSelect) monthSelect.innerHTML = monthHTML;
+
+        // Mobile Inputs
+        const mYear = document.getElementById('mobile-year-filter');
+        const mMonth = document.getElementById('mobile-month-filter');
+        if(mYear) mYear.innerHTML = yearHTML;
+        if(mMonth) mMonth.innerHTML = monthHTML;
     }
 };
