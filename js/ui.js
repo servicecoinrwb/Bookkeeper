@@ -11,9 +11,7 @@ export const UI = {
         this.setupCharts();
         this.updateDashboard();
         this.populateRuleCategories();
-        this.renderRulesList();
-        this.renderCategoryManagementList();
-        this.renderGuide();
+        // this.renderGuide(); // Uncomment if you use the guide
     },
 
     showToast(msg, type = 'success') {
@@ -39,19 +37,22 @@ export const UI = {
         document.querySelectorAll('[id^="view-"]').forEach(el => el.classList.add('hidden'));
         const target = document.getElementById(`view-${tabName}`);
         if(target) target.classList.remove('hidden');
+        
         const titleEl = document.getElementById('page-title');
         if(titleEl) titleEl.textContent = tabName.charAt(0).toUpperCase() + tabName.slice(1);
 
+        // Render View Specific Data
         if(tabName === 'transactions') this.renderTransactions();
         if(tabName === 'jobs') this.renderJobs();
         if(tabName === 'ar') this.renderSimpleTable('ar', 'ar-container');
         if(tabName === 'ap') this.renderSimpleTable('ap', 'ap-container');
         if(tabName === 'reports') this.renderPL();
-        if(tabName === 'taxes') this.renderTaxes();
+        if(tabName === 'taxes') this.renderTaxes(); // Ensure Tax is re-rendered
         
         State.currentView = tabName;
     },
 
+    // --- Report Sub-tabs ---
     switchReport(type) {
         document.querySelectorAll('.rep-tab').forEach(b => {
             b.className = (b.id === `rep-tab-${type}`) 
@@ -62,6 +63,7 @@ export const UI = {
         
         const target = document.getElementById(`report-${type}`);
         if(target) target.classList.remove('hidden');
+        
         if(type === 'pl') this.renderPL();
         if(type === 'aging-ar') this.renderAging('ar', 'report-aging-ar');
         if(type === 'aging-ap') this.renderAging('ap', 'report-aging-ap');
@@ -85,15 +87,28 @@ export const UI = {
         const net = txs.reduce((sum, t) => sum + t.amount, 0); 
         const ar = data.filter(d => d.type === 'ar' && d.status === 'unpaid').reduce((sum, t) => sum + t.amount, 0);
 
-        document.getElementById('dash-income').textContent = Utils.formatCurrency(income);
-        document.getElementById('dash-expense').textContent = Utils.formatCurrency(Math.abs(expense));
-        const netEl = document.getElementById('dash-net');
-        netEl.textContent = Utils.formatCurrency(net);
-        netEl.className = `text-2xl font-bold mt-1 ${net >= 0 ? 'text-emerald-600' : 'text-red-600'}`;
-        document.getElementById('dash-ar').textContent = Utils.formatCurrency(ar);
+        const elIncome = document.getElementById('dash-income');
+        if(elIncome) elIncome.textContent = Utils.formatCurrency(income);
+        
+        const elExpense = document.getElementById('dash-expense');
+        if(elExpense) elExpense.textContent = Utils.formatCurrency(Math.abs(expense));
+        
+        const elNet = document.getElementById('dash-net');
+        if(elNet) {
+            elNet.textContent = Utils.formatCurrency(net);
+            elNet.className = `text-2xl font-bold mt-1 ${net >= 0 ? 'text-emerald-600' : 'text-red-600'}`;
+        }
+        
+        const elAr = document.getElementById('dash-ar');
+        if(elAr) elAr.textContent = Utils.formatCurrency(ar);
 
-        document.getElementById('upload-prompt').classList.toggle('hidden', txs.length > 0);
+        const prompt = document.getElementById('upload-prompt');
+        if(prompt) prompt.classList.toggle('hidden', txs.length > 0);
+        
         this.updateCharts(txs);
+        
+        // Also update Tax view if visible, since filter changed
+        if(State.currentView === 'taxes') this.renderTaxes();
     },
 
     setupCharts() {
@@ -246,18 +261,59 @@ export const UI = {
             { title: "2. Job Costing", content: "Edit transactions to assign a 'Job Name'. View profitability in the Job Profit tab." },
             { title: "3. AR & AP", content: "Enter bills/invoices manually in the specific tabs. Mark them paid when money moves." }
         ];
-        document.getElementById('guide-content').innerHTML = guide.map(i => `<div class="border rounded p-4"><h4 class="font-bold mb-2">${i.title}</h4><p class="text-sm text-slate-600">${i.content}</p></div>`).join('');
+        const container = document.getElementById('guide-content');
+        if(container) container.innerHTML = guide.map(i => `<div class="border rounded p-4"><h4 class="font-bold mb-2">${i.title}</h4><p class="text-sm text-slate-600">${i.content}</p></div>`).join('');
     },
 
+    // --- FIX: TAX RENDER LOGIC ---
     renderTaxes() {
-        const txs = State.data.filter(d => d.type === 'transaction'); 
+        // Use the Global Year Filter
+        const selectedYear = State.filters.year;
+        
+        // Filter Transactions by Year & Type
+        const txs = State.data.filter(d => {
+            if (d.type !== 'transaction') return false;
+            // If filter is 'all', we calculate for ALL time (or maybe current year default?)
+            // Usually taxes are year-bound. Let's respect the filter.
+            if (selectedYear !== 'all') {
+                const txYear = new Date(d.date).getFullYear().toString();
+                if (txYear !== selectedYear) return false;
+            }
+            return true;
+        });
+
         let taxableProfit = 0;
-        txs.forEach(t => { if(t.category !== 'Transfer' && !(t.amount < 0 && t.category === "Owner's Draw")) taxableProfit += t.amount; });
-        const rate = parseFloat(document.getElementById('tax-rate-input').value) || 30;
+        txs.forEach(t => { 
+            // Logic: Include Income. Include Expenses (but NOT Owner's Draw or Transfers)
+            const isTransfer = t.category === 'Transfer';
+            const isDraw = t.amount < 0 && t.category === "Owner's Draw";
+            
+            if (!isTransfer && !isDraw) {
+                taxableProfit += t.amount;
+            }
+        });
+
+        const rateEl = document.getElementById('tax-rate-input');
+        const rate = rateEl ? (parseFloat(rateEl.value) || 30) : 30;
+        
+        // Tax is only on PROFIT (positive). If loss, tax is 0.
         const taxDue = Math.max(0, taxableProfit * (rate / 100));
-        document.getElementById('tax-profit').textContent = Utils.formatCurrency(taxableProfit);
-        document.getElementById('tax-due').textContent = Utils.formatCurrency(taxDue);
-        ['q1','q2','q3','q4'].forEach(q => document.getElementById(`tax-${q}`).textContent = Utils.formatCurrency(taxDue/4));
+        
+        const elProfit = document.getElementById('tax-profit');
+        if(elProfit) elProfit.textContent = Utils.formatCurrency(taxableProfit);
+        
+        const elDue = document.getElementById('tax-due');
+        if(elDue) elDue.textContent = Utils.formatCurrency(taxDue);
+        
+        ['q1','q2','q3','q4'].forEach(q => {
+            const el = document.getElementById(`tax-${q}`);
+            // If 'all years' is selected, quarterly breakdown is meaningless/confusing
+            if(selectedYear === 'all') {
+                if(el) el.textContent = '---';
+            } else {
+                if(el) el.textContent = Utils.formatCurrency(taxDue/4);
+            }
+        });
     },
 
     renderJobs() {
@@ -293,30 +349,47 @@ export const UI = {
     updateReconCalc() {
         const cleared = State.data.filter(d => d.type === 'transaction' && d.reconciled).reduce((sum, t) => sum + t.amount, 0);
         document.getElementById('recon-cleared').textContent = Utils.formatCurrency(cleared);
-        const input = parseFloat(document.getElementById('recon-input').value) || 0;
+        const elInput = document.getElementById('recon-input');
+        const input = elInput ? (parseFloat(elInput.value) || 0) : 0;
         const diff = input - cleared;
         document.getElementById('recon-diff').textContent = Utils.formatCurrency(diff);
         const msgEl = document.getElementById('recon-msg');
-        msgEl.className = `p-2 rounded text-center text-sm font-bold ${Math.abs(diff) < 0.01 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`;
-        msgEl.textContent = Math.abs(diff) < 0.01 ? "Balanced! ✅" : "Off Balance ❌";
-        msgEl.classList.remove('hidden');
+        if(msgEl) {
+            msgEl.className = `p-2 rounded text-center text-sm font-bold ${Math.abs(diff) < 0.01 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`;
+            msgEl.textContent = Math.abs(diff) < 0.01 ? "Balanced! ✅" : "Off Balance ❌";
+            msgEl.classList.remove('hidden');
+        }
     },
 
+    // --- FIX: DATE FILTER POPULATION ---
     renderDateFilters() {
-        const yearSelect = document.getElementById('year-filter');
-        const monthSelect = document.getElementById('month-filter');
+        // 1. Get Unique Years from Data
         const years = [...new Set(State.data.map(d => new Date(d.date).getFullYear()))].filter(y => !isNaN(y)).sort().reverse();
         
+        // 2. Ensure CURRENT year is always an option, even if no data yet
+        const currentYear = new Date().getFullYear();
+        if (!years.includes(currentYear)) {
+            years.unshift(currentYear);
+        }
+
         const yearHTML = '<option value="all">All Years</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
         const monthHTML = '<option value="all">All Months</option>' + ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => `<option value="${i+1}">${m}</option>`).join('');
 
-        if(yearSelect) yearSelect.innerHTML = yearHTML;
-        if(monthSelect) monthSelect.innerHTML = monthHTML;
+        // Helper to set both innerHTML and Value
+        const setFilter = (id, html, val) => {
+            const el = document.getElementById(id);
+            if(el) {
+                el.innerHTML = html;
+                el.value = val; // Set the dropdown to match State
+            }
+        };
 
-        // Mobile
-        const mYear = document.getElementById('mobile-year-filter');
-        const mMonth = document.getElementById('mobile-month-filter');
-        if(mYear) mYear.innerHTML = yearHTML;
-        if(mMonth) mMonth.innerHTML = monthHTML;
+        // Update Desktop
+        setFilter('year-filter', yearHTML, State.filters.year);
+        setFilter('month-filter', monthHTML, State.filters.month);
+
+        // Update Mobile
+        setFilter('mobile-year-filter', yearHTML, State.filters.year);
+        setFilter('mobile-month-filter', monthHTML, State.filters.month);
     }
 };
