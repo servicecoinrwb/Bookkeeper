@@ -48,7 +48,7 @@ export const UI = {
             if(tabName === 'ar') this.renderSimpleTable('ar', 'ar-container');
             if(tabName === 'ap') this.renderSimpleTable('ap', 'ap-container');
             if(tabName === 'reports') this.renderPL();
-            if(tabName === 'taxes') this.renderTaxes(); // Ensure this is called
+            if(tabName === 'taxes') this.renderTaxes();
             
             State.currentView = tabName;
         }
@@ -64,12 +64,9 @@ export const UI = {
         }).sort((a,b) => new Date(b.date) - new Date(a.date));
     },
 
-    // --- FIX: TAX RENDER LOGIC ---
+    // --- Tax Render Logic ---
     renderTaxes() {
         const selectedYear = State.filters.year;
-        
-        // Filter transactions for Tax Calculation
-        // Logic: Use Global Year Filter. If 'All Years', show all.
         const txs = State.data.filter(d => {
             if (d.type !== 'transaction') return false;
             if (selectedYear !== 'all') {
@@ -81,10 +78,8 @@ export const UI = {
 
         let taxableProfit = 0;
         txs.forEach(t => { 
-            // Tax Logic: Income + Expenses (excluding Owner's Draw/Transfers)
             const isTransfer = t.category === 'Transfer';
             const isDraw = t.amount < 0 && t.category === "Owner's Draw";
-            
             if (!isTransfer && !isDraw) {
                 taxableProfit += t.amount;
             }
@@ -92,8 +87,6 @@ export const UI = {
 
         const rateEl = document.getElementById('tax-rate-input');
         const rate = rateEl ? (parseFloat(rateEl.value) || 30) : 30;
-        
-        // Tax is on PROFIT only
         const taxDue = Math.max(0, taxableProfit * (rate / 100));
         
         const elProfit = document.getElementById('tax-profit');
@@ -102,11 +95,9 @@ export const UI = {
         const elDue = document.getElementById('tax-due');
         if(elDue) elDue.textContent = Utils.formatCurrency(taxDue);
         
-        // Update Quarterly
         ['q1','q2','q3','q4'].forEach(q => {
             const el = document.getElementById(`tax-${q}`);
             if(el) {
-                // If viewing "All Years", quarterly breakdown is confusing, so hide it
                 if(selectedYear === 'all') el.textContent = '---';
                 else el.textContent = Utils.formatCurrency(taxDue/4);
             }
@@ -142,12 +133,61 @@ export const UI = {
         
         this.updateCharts(txs);
         
-        // Force tax update whenever dashboard updates (filters changed)
         if(State.currentView === 'taxes') this.renderTaxes();
     },
 
-    // ... (Keep existing methods: setupCharts, updateCharts, renderTransactions, renderPL, renderAging, renderVendorReport, renderJobs, renderSimpleTable, populateRuleCategories, renderRulesList, renderCategoryManagementList, updateReconCalc, switchReport, renderGuide) ...
+    // --- Charts ---
+    setupCharts() {
+        const createChart = (id, type, options = {}) => {
+            const el = document.getElementById(id);
+            if (!el) return null;
+            return new Chart(el.getContext('2d'), { type, data: { labels: [], datasets: [] }, options: { responsive: true, maintainAspectRatio: false, ...options } });
+        };
+        this.charts.main = createChart('mainChart', 'bar');
+        this.charts.profit = createChart('profitChart', 'line', { plugins: { legend: { display: false }, title: { display: true, text: 'Net Profit Trend' } } });
+        this.charts.income = createChart('incomeChart', 'pie', { plugins: { legend: { position: 'right' }, title: { display: true, text: 'Income Sources' } } });
+        this.charts.expense = createChart('expenseChart', 'doughnut', { plugins: { legend: { position: 'right' }, title: { display: true, text: 'Expense Breakdown' } } });
+    },
 
+    updateCharts(txs) {
+        const monthlyData = {};
+        txs.forEach(t => {
+            const month = new Date(t.date).toLocaleString('default', { month: 'short' });
+            if(!monthlyData[month]) monthlyData[month] = { income: 0, expense: 0 };
+            if(t.amount > 0 && t.category !== 'Transfer') monthlyData[month].income += t.amount;
+            if(t.amount < 0 && t.category !== 'Transfer') monthlyData[month].expense += Math.abs(t.amount);
+        });
+        const labels = Object.keys(monthlyData).reverse();
+
+        if (this.charts.main) {
+            this.charts.main.data = {
+                labels: labels,
+                datasets: [ { label: 'Income', data: labels.map(l => monthlyData[l].income), backgroundColor: '#10b981' }, { label: 'Expenses', data: labels.map(l => monthlyData[l].expense), backgroundColor: '#ef4444' } ]
+            };
+            this.charts.main.update();
+        }
+        if (this.charts.profit) {
+            this.charts.profit.data = {
+                labels: labels,
+                datasets: [{ label: 'Net Profit', data: labels.map(l => monthlyData[l].income - monthlyData[l].expense), borderColor: '#3b82f6', backgroundColor: '#3b82f6', tension: 0.3, fill: false }]
+            };
+            this.charts.profit.update();
+        }
+        if (this.charts.income) {
+            const incomeCats = {};
+            txs.filter(t => t.amount > 0 && t.category !== 'Transfer').forEach(t => { incomeCats[t.category] = (incomeCats[t.category] || 0) + t.amount; });
+            this.charts.income.data = { labels: Object.keys(incomeCats), datasets: [{ data: Object.values(incomeCats), backgroundColor: ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#065f46'] }] };
+            this.charts.income.update();
+        }
+        if (this.charts.expense) {
+            const expenseCats = {};
+            txs.filter(t => t.amount < 0 && t.category !== 'Transfer' && t.category !== "Owner's Draw").forEach(t => { expenseCats[t.category] = (expenseCats[t.category] || 0) + Math.abs(t.amount); });
+            this.charts.expense.data = { labels: Object.keys(expenseCats), datasets: [{ data: Object.values(expenseCats), backgroundColor: ['#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#eab308', '#22c55e', '#f43f5e', '#a855f7'] }] };
+            this.charts.expense.update();
+        }
+    },
+
+    // --- Rules & Categories ---
     renderRulesList() {
         const div = document.getElementById('rules-list');
         if(div) {
@@ -183,12 +223,11 @@ export const UI = {
         const opts = State.categories.map(c => `<option value="${c}">${c}</option>`).join('');
         const select = document.getElementById('rule-category');
         if(select) select.innerHTML = opts;
-        
-        // Also update Edit Modal list
         const dl = document.getElementById('category-list');
-        if(dl) dl.innerHTML = State.categories.map(c => `<option value="${c}">`).join('');
+        if(dl) dl.innerHTML = opts;
     },
 
+    // --- Other Renders ---
     renderDateFilters() {
         const years = [...new Set(State.data.map(d => new Date(d.date).getFullYear()))].filter(y => !isNaN(y)).sort().reverse();
         const currentYear = new Date().getFullYear();
@@ -225,14 +264,129 @@ export const UI = {
             if(type === 'vendors') this.renderVendorReport('report-vendors');
         }
     },
+
+    renderPL() {
+        const container = document.getElementById('report-pl');
+        if(!container) return;
+        const txs = this.getFilteredData().filter(d => d.type === 'transaction');
+        const cats = {};
+        let income = 0, expenses = 0;
+        
+        txs.forEach(t => {
+            if(t.category === 'Transfer') return;
+            if(!cats[t.category]) cats[t.category] = 0;
+            cats[t.category] += t.amount;
+            if(t.amount > 0) income += t.amount;
+            else if(t.category !== "Owner's Draw") expenses += t.amount;
+        });
+
+        const html = `
+            <div class="grid grid-cols-3 gap-4 mb-8 text-center">
+                <div class="p-4 bg-emerald-50 rounded border border-emerald-100"><div class="text-emerald-600 text-xs uppercase">Income</div><div class="text-xl font-bold">${Utils.formatCurrency(income)}</div></div>
+                <div class="p-4 bg-red-50 rounded border border-red-100"><div class="text-red-600 text-xs uppercase">Expenses</div><div class="text-xl font-bold">${Utils.formatCurrency(Math.abs(expenses))}</div></div>
+                <div class="p-4 bg-slate-50 rounded border border-slate-200"><div class="text-slate-600 text-xs uppercase">Net</div><div class="text-xl font-bold">${Utils.formatCurrency(income + expenses)}</div></div>
+            </div>
+            <h4 class="font-bold mb-2 text-slate-800">Category Breakdown</h4>
+            <div class="space-y-1 text-sm bg-slate-50 p-4 rounded border border-slate-100">
+                ${Object.keys(cats).sort().map(c => `<div class="flex justify-between py-1 border-b border-slate-200 last:border-0"><span>${c}</span><span class="${cats[c]>=0?'text-emerald-600':'text-slate-600'} font-mono">${Utils.formatCurrency(cats[c])}</span></div>`).join('')}
+            </div>
+        `;
+        container.innerHTML = html;
+    },
+
+    renderAging(type, containerId) {
+        const container = document.getElementById(containerId);
+        if(!container) return;
+        const data = this.getFilteredData().filter(d => d.type === type && d.status === 'unpaid');
+        const buckets = { 'Current': [], '1-30 Days': [], '31-60 Days': [], '61-90 Days': [], '90+ Days': [] };
+        const today = new Date();
+
+        data.forEach(item => {
+            const diffDays = Math.floor((today - new Date(item.date)) / (1000 * 60 * 60 * 24));
+            if (diffDays <= 0) buckets['Current'].push(item);
+            else if (diffDays <= 30) buckets['1-30 Days'].push(item);
+            else if (diffDays <= 60) buckets['31-60 Days'].push(item);
+            else if (diffDays <= 90) buckets['61-90 Days'].push(item);
+            else buckets['90+ Days'].push(item);
+        });
+
+        let html = '';
+        let hasData = false;
+        Object.keys(buckets).forEach(bucket => {
+            const items = buckets[bucket];
+            if(items.length === 0) return;
+            hasData = true;
+            const total = items.reduce((sum, i) => sum + i.amount, 0);
+            html += `<div class="border border-slate-200 rounded-lg mb-6 overflow-hidden"><div class="bg-slate-50 px-4 py-2 font-bold text-sm flex justify-between items-center text-slate-700"><span>${bucket} Overdue</span><span class="bg-white px-2 py-1 rounded border shadow-sm">${Utils.formatCurrency(total)}</span></div><table class="w-full text-sm"><tbody class="divide-y divide-slate-100">${items.map(i => `<tr><td class="p-3">${i.party}</td><td class="p-3 text-slate-500">${i.date}</td><td class="p-3 text-right font-mono">${Utils.formatCurrency(i.amount)}</td></tr>`).join('')}</tbody></table></div>`;
+        });
+        container.innerHTML = hasData ? html : `<div class="p-10 text-center text-slate-400 border-2 border-dashed rounded-xl">No overdue items.</div>`;
+    },
+
+    renderVendorReport(containerId) {
+        const container = document.getElementById(containerId);
+        if(!container) return;
+        const txs = this.getFilteredData().filter(d => d.type === 'transaction' && d.amount < 0 && d.category !== "Owner's Draw" && d.category !== "Transfer");
+        const vendors = {};
+        let total = 0;
+        txs.forEach(t => {
+            const name = t.description.replace(/[0-9#*-]/g, '').trim() || 'Unknown';
+            vendors[name] = (vendors[name] || 0) + Math.abs(t.amount);
+            total += Math.abs(t.amount);
+        });
+        const sorted = Object.keys(vendors).map(v => ({ name: v, amount: vendors[v] })).sort((a,b) => b.amount - a.amount);
+        const html = `<div class="overflow-hidden rounded-xl border border-slate-200"><table class="w-full text-sm text-left"><thead class="bg-slate-50 text-slate-500 uppercase text-xs"><tr><th class="p-3">Vendor</th><th class="p-3 text-right">Total Spent</th><th class="p-3 text-right">% of Total</th></tr></thead><tbody class="divide-y divide-slate-100 bg-white">${sorted.map(v => `<tr class="hover:bg-slate-50"><td class="p-3 font-medium text-slate-700">${v.name}</td><td class="p-3 text-right font-mono">${Utils.formatCurrency(v.amount)}</td><td class="p-3 text-right text-slate-500">${total > 0 ? ((v.amount/total)*100).toFixed(1) : 0}%</td></tr>`).join('')}</tbody></table></div>`;
+        container.innerHTML = sorted.length ? html : '<div class="p-10 text-center text-slate-500">No expenses found.</div>';
+    },
+
+    renderJobs() {
+        const jobs = {};
+        this.getFilteredData().filter(d => d.type === 'transaction' && d.job).forEach(t => { if(!jobs[t.job]) jobs[t.job] = 0; jobs[t.job] += t.amount; });
+        const container = document.getElementById('jobs-container');
+        if(container) {
+            container.innerHTML = Object.keys(jobs).length ? `<table class="w-full text-sm text-left"><thead class="bg-slate-50"><tr><th class="p-3">Job</th><th class="p-3 text-right">Net</th></tr></thead><tbody>${Object.keys(jobs).map(j => `<tr><td class="p-3 border-b">${j}</td><td class="p-3 border-b text-right font-bold ${jobs[j]>=0?'text-emerald-600':'text-red-600'}">${Utils.formatCurrency(jobs[j])}</td></tr>`).join('')}</tbody></table>` : '<div class="p-10 text-center text-slate-500">No job data.</div>';
+        }
+    },
+
+    renderSimpleTable(type, containerId) {
+        let data = this.getFilteredData().filter(d => d.type === type);
+        const searchEl = document.getElementById(`${type}-search`);
+        if (searchEl && searchEl.value) {
+            const term = searchEl.value.toLowerCase();
+            data = data.filter(d => (d.party && d.party.toLowerCase().includes(term)) || (d.number && d.number.toLowerCase().includes(term)));
+        }
+        const container = document.getElementById(containerId);
+        if(container) {
+            container.innerHTML = data.length ? `<table class="w-full text-sm text-left"><thead class="bg-slate-50"><tr><th class="p-3">Name</th><th class="p-3">Date</th><th class="p-3 text-right">Amount</th><th class="p-3 text-center">Status</th><th class="p-3 text-right">Action</th></tr></thead><tbody>${data.map(i => `<tr><td class="p-3 border-b">${i.party}</td><td class="p-3 border-b text-slate-500">${i.date}</td><td class="p-3 border-b text-right font-bold">${Utils.formatCurrency(i.amount)}</td><td class="p-3 border-b text-center"><span class="px-2 py-1 rounded text-xs ${i.status==='paid'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}">${i.status}</span></td><td class="p-3 border-b text-right"><button onclick="App.handlers.toggleApArStatus('${i.id}')" class="text-xs text-brand-600 hover:underline">Toggle Status</button></td></tr>`).join('')}</tbody></table>` : '<div class="p-10 text-center text-slate-500">No data found.</div>';
+        }
+    },
+
+    renderGuide() {
+        const guide = [
+            { title: "1. Bank Reconciliation", content: "Compare your bank statement to the Transactions tab. Check 'Rec' on matching items. Use the Reconcile button to verify balance." },
+            { title: "2. Job Costing", content: "Edit transactions to assign a 'Job Name'. View profitability in the Job Profit tab." },
+            { title: "3. AR & AP", content: "Enter bills/invoices manually in the specific tabs. Mark them paid when money moves." }
+        ];
+        const container = document.getElementById('guide-content');
+        if(container) container.innerHTML = guide.map(i => `<div class="border rounded p-4"><h4 class="font-bold mb-2">${i.title}</h4><p class="text-sm text-slate-600">${i.content}</p></div>`).join('');
+    },
     
-    // Re-adding omitted methods to ensure file is complete
-    renderPL() { const container = document.getElementById('report-pl'); if(!container) return; const txs = this.getFilteredData().filter(d => d.type === 'transaction'); const cats = {}; let income = 0, expenses = 0; txs.forEach(t => { if(t.category === 'Transfer') return; if(!cats[t.category]) cats[t.category] = 0; cats[t.category] += t.amount; if(t.amount > 0) income += t.amount; else if(t.category !== "Owner's Draw") expenses += t.amount; }); const html = `<div class="grid grid-cols-3 gap-4 mb-8 text-center"><div class="p-4 bg-emerald-50 rounded border border-emerald-100"><div class="text-emerald-600 text-xs uppercase">Income</div><div class="text-xl font-bold">${Utils.formatCurrency(income)}</div></div><div class="p-4 bg-red-50 rounded border border-red-100"><div class="text-red-600 text-xs uppercase">Expenses</div><div class="text-xl font-bold">${Utils.formatCurrency(Math.abs(expenses))}</div></div><div class="p-4 bg-slate-50 rounded border border-slate-200"><div class="text-slate-600 text-xs uppercase">Net</div><div class="text-xl font-bold">${Utils.formatCurrency(income + expenses)}</div></div></div><h4 class="font-bold mb-2 text-slate-800">Category Breakdown</h4><div class="space-y-1 text-sm bg-slate-50 p-4 rounded border border-slate-100">${Object.keys(cats).sort().map(c => `<div class="flex justify-between py-1 border-b border-slate-200 last:border-0"><span>${c}</span><span class="${cats[c]>=0?'text-emerald-600':'text-slate-600'} font-mono">${Utils.formatCurrency(cats[c])}</span></div>`).join('')}</div>`; container.innerHTML = html; },
-    renderAging(type, containerId) { const container = document.getElementById(containerId); if(!container) return; const data = this.getFilteredData().filter(d => d.type === type && d.status === 'unpaid'); const buckets = { 'Current': [], '1-30 Days': [], '31-60 Days': [], '61-90 Days': [], '90+ Days': [] }; const today = new Date(); data.forEach(item => { const diffDays = Math.floor((today - new Date(item.date)) / (1000 * 60 * 60 * 24)); if (diffDays <= 0) buckets['Current'].push(item); else if (diffDays <= 30) buckets['1-30 Days'].push(item); else if (diffDays <= 60) buckets['31-60 Days'].push(item); else if (diffDays <= 90) buckets['61-90 Days'].push(item); else buckets['90+ Days'].push(item); }); let html = ''; let hasData = false; Object.keys(buckets).forEach(bucket => { const items = buckets[bucket]; if(items.length === 0) return; hasData = true; const total = items.reduce((sum, i) => sum + i.amount, 0); html += `<div class="border border-slate-200 rounded-lg mb-6 overflow-hidden"><div class="bg-slate-50 px-4 py-2 font-bold text-sm flex justify-between items-center text-slate-700"><span>${bucket} Overdue</span><span class="bg-white px-2 py-1 rounded border shadow-sm">${Utils.formatCurrency(total)}</span></div><table class="w-full text-sm"><tbody class="divide-y divide-slate-100">${items.map(i => `<tr><td class="p-3">${i.party}</td><td class="p-3 text-slate-500">${i.date}</td><td class="p-3 text-right font-mono">${Utils.formatCurrency(i.amount)}</td></tr>`).join('')}</tbody></table></div>`; }); container.innerHTML = hasData ? html : `<div class="p-10 text-center text-slate-400 border-2 border-dashed rounded-xl">No overdue items.</div>`; },
-    renderVendorReport(containerId) { const container = document.getElementById(containerId); if(!container) return; const txs = this.getFilteredData().filter(d => d.type === 'transaction' && d.amount < 0 && d.category !== "Owner's Draw" && d.category !== "Transfer"); const vendors = {}; let total = 0; txs.forEach(t => { const name = t.description.replace(/[0-9#*-]/g, '').trim() || 'Unknown'; vendors[name] = (vendors[name] || 0) + Math.abs(t.amount); total += Math.abs(t.amount); }); const sorted = Object.keys(vendors).map(v => ({ name: v, amount: vendors[v] })).sort((a,b) => b.amount - a.amount); const html = `<div class="overflow-hidden rounded-xl border border-slate-200"><table class="w-full text-sm text-left"><thead class="bg-slate-50 text-slate-500 uppercase text-xs"><tr><th class="p-3">Vendor</th><th class="p-3 text-right">Total Spent</th><th class="p-3 text-right">% of Total</th></tr></thead><tbody class="divide-y divide-slate-100 bg-white">${sorted.map(v => `<tr class="hover:bg-slate-50"><td class="p-3 font-medium text-slate-700">${v.name}</td><td class="p-3 text-right font-mono">${Utils.formatCurrency(v.amount)}</td><td class="p-3 text-right text-slate-500">${total > 0 ? ((v.amount/total)*100).toFixed(1) : 0}%</td></tr>`).join('')}</tbody></table></div>`; container.innerHTML = sorted.length ? html : '<div class="p-10 text-center text-slate-500">No expenses found.</div>'; },
-    renderJobs() { const jobs = {}; this.getFilteredData().filter(d => d.type === 'transaction' && d.job).forEach(t => { if(!jobs[t.job]) jobs[t.job] = 0; jobs[t.job] += t.amount; }); const container = document.getElementById('jobs-container'); if(container) { container.innerHTML = Object.keys(jobs).length ? `<table class="w-full text-sm text-left"><thead class="bg-slate-50"><tr><th class="p-3">Job</th><th class="p-3 text-right">Net</th></tr></thead><tbody>${Object.keys(jobs).map(j => `<tr><td class="p-3 border-b">${j}</td><td class="p-3 border-b text-right font-bold ${jobs[j]>=0?'text-emerald-600':'text-red-600'}">${Utils.formatCurrency(jobs[j])}</td></tr>`).join('')}</tbody></table>` : '<div class="p-10 text-center text-slate-500">No job data.</div>'; } },
-    renderSimpleTable(type, containerId) { let data = this.getFilteredData().filter(d => d.type === type); const searchEl = document.getElementById(`${type}-search`); if (searchEl && searchEl.value) { const term = searchEl.value.toLowerCase(); data = data.filter(d => (d.party && d.party.toLowerCase().includes(term)) || (d.number && d.number.toLowerCase().includes(term))); } const container = document.getElementById(containerId); if(container) { container.innerHTML = data.length ? `<table class="w-full text-sm text-left"><thead class="bg-slate-50"><tr><th class="p-3">Name</th><th class="p-3">Date</th><th class="p-3 text-right">Amount</th><th class="p-3 text-center">Status</th><th class="p-3 text-right">Action</th></tr></thead><tbody>${data.map(i => `<tr><td class="p-3 border-b">${i.party}</td><td class="p-3 border-b text-slate-500">${i.date}</td><td class="p-3 border-b text-right font-bold">${Utils.formatCurrency(i.amount)}</td><td class="p-3 border-b text-center"><span class="px-2 py-1 rounded text-xs ${i.status==='paid'?'bg-emerald-100 text-emerald-800':'bg-red-100 text-red-800'}">${i.status}</span></td><td class="p-3 border-b text-right"><button onclick="App.handlers.toggleApArStatus('${i.id}')" class="text-xs text-brand-600 hover:underline">Toggle Status</button></td></tr>`).join('')}</tbody></table>` : '<div class="p-10 text-center text-slate-500">No data found.</div>'; } },
-    renderGuide() { const guide = [ { title: "1. Bank Reconciliation", content: "Compare your bank statement to the Transactions tab. Check 'Rec' on matching items. Use the Reconcile button to verify balance." }, { title: "2. Job Costing", content: "Edit transactions to assign a 'Job Name'. View profitability in the Job Profit tab." }, { title: "3. AR & AP", content: "Enter bills/invoices manually in the specific tabs. Mark them paid when money moves." } ]; const container = document.getElementById('guide-content'); if(container) container.innerHTML = guide.map(i => `<div class="border rounded p-4"><h4 class="font-bold mb-2">${i.title}</h4><p class="text-sm text-slate-600">${i.content}</p></div>`).join(''); },
-    renderTransactions() { const tbody = document.getElementById('tx-table-body'); if(!tbody) return; const search = document.getElementById('tx-search').value.toLowerCase(); const data = this.getFilteredData().filter(d => d.type === 'transaction' && (!search || d.description.toLowerCase().includes(search) || d.category.toLowerCase().includes(search))); tbody.innerHTML = data.map(t => ` <tr class="hover:bg-slate-50 border-b"> <td class="px-6 py-4"><input type="checkbox" data-id="${t.id}" class="reconcile-checkbox" ${t.reconciled ? 'checked' : ''}></td> <td class="px-6 py-4 text-slate-500">${new Date(t.date).toLocaleDateString()}</td> <td class="px-6 py-4 font-medium">${t.description}</td> <td class="px-6 py-4 font-bold ${t.amount >= 0 ? 'text-emerald-600' : 'text-slate-800'}">${Utils.formatCurrency(t.amount)}</td> <td class="px-6 py-4"><span class="bg-slate-100 px-2 py-1 rounded text-xs">${t.category}</span></td> <td class="px-6 py-4 text-right"><button class="edit-btn text-brand-600 hover:underline" data-id="${t.id}">Edit</button></td> </tr> `).join('') || '<tr><td colspan="6" class="p-6 text-center text-slate-500">No transactions.</td></tr>'; tbody.querySelectorAll('.edit-btn').forEach(b => b.addEventListener('click', e => Handlers.editTransaction(e.target.dataset.id))); tbody.querySelectorAll('.reconcile-checkbox').forEach(b => b.addEventListener('change', e => Handlers.toggleReconcile(e.target.dataset.id))); },
-    updateReconCalc() { const cleared = State.data.filter(d => d.type === 'transaction' && d.reconciled).reduce((sum, t) => sum + t.amount, 0); const elCleared = document.getElementById('recon-cleared'); if(elCleared) elCleared.textContent = Utils.formatCurrency(cleared); const elInput = document.getElementById('recon-input'); const input = elInput ? (parseFloat(elInput.value) || 0) : 0; const diff = input - cleared; const elDiff = document.getElementById('recon-diff'); if(elDiff) elDiff.textContent = Utils.formatCurrency(diff); const msgEl = document.getElementById('recon-msg'); if(msgEl) { msgEl.className = `p-2 rounded text-center text-sm font-bold ${Math.abs(diff) < 0.01 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`; msgEl.textContent = Math.abs(diff) < 0.01 ? "Balanced! ✅" : "Off Balance ❌"; msgEl.classList.remove('hidden'); } }
+    updateReconCalc() {
+        const cleared = State.data.filter(d => d.type === 'transaction' && d.reconciled).reduce((sum, t) => sum + t.amount, 0);
+        const elCleared = document.getElementById('recon-cleared');
+        if(elCleared) elCleared.textContent = Utils.formatCurrency(cleared);
+        
+        const elInput = document.getElementById('recon-input');
+        const input = elInput ? (parseFloat(elInput.value) || 0) : 0;
+        
+        const diff = input - cleared;
+        const elDiff = document.getElementById('recon-diff');
+        if(elDiff) elDiff.textContent = Utils.formatCurrency(diff);
+        
+        const msgEl = document.getElementById('recon-msg');
+        if(msgEl) {
+            msgEl.className = `p-2 rounded text-center text-sm font-bold ${Math.abs(diff) < 0.01 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`;
+            msgEl.textContent = Math.abs(diff) < 0.01 ? "Balanced! ✅" : "Off Balance ❌";
+            msgEl.classList.remove('hidden');
+        }
+    }
 };
