@@ -38,6 +38,7 @@ document.getElementById('logout-btn').addEventListener('click', () => signOut(au
 onAuthStateChanged(auth, async (user) => {
     State.user = user;
     if(user) {
+        // User is Signed In
         document.getElementById('login-btn').classList.add('hidden');
         document.getElementById('user-profile').classList.remove('hidden');
         document.getElementById('user-name').textContent = user.displayName;
@@ -51,9 +52,17 @@ onAuthStateChanged(auth, async (user) => {
             UI.renderTransactions();
         }
     } else {
+        // User is Signed Out (Guest Mode)
         document.getElementById('login-btn').classList.remove('hidden');
         document.getElementById('user-profile').classList.add('hidden');
-        State.data = []; // Clear data on logout for security
+        
+        // Fallback to Local Storage instead of clearing everything
+        const localData = localStorage.getItem('bk_data');
+        if(localData) {
+            State.data = JSON.parse(localData);
+        } else {
+            State.data = []; 
+        }
         UI.renderDashboard();
     }
 });
