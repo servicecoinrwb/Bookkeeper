@@ -9,20 +9,23 @@ export const Handlers = {
             header: true, 
             skipEmptyLines: true,
             complete: (results) => {
-                // 1. Create a "Fingerprint" set of existing transactions to prevent duplicates
-                // Fingerprint = Date + Description + Amount
-                const existingSignatures = new Set(State.data
-                    .filter(d => d.type === 'transaction')
-                    .map(tx => `${tx.date}-${tx.description}-${tx.amount}`)
-                );
+                // 1. Build a Frequency Map of existing transactions
+                // Key: "2023-10-25-Home Depot-50.00" -> Value: 2 (if it appears twice)
+                const existingCounts = {};
+                State.data.forEach(tx => {
+                    if(tx.type === 'transaction') {
+                        const key = `${tx.date}-${tx.description.trim()}-${tx.amount}`;
+                        existingCounts[key] = (existingCounts[key] || 0) + 1;
+                    }
+                });
 
                 const newTxs = results.data.map(row => {
                      // Robust Column Matching
                      const dateStr = row['Date'] || row['date'] || row['TransDate'];
-                     const desc = row['Description'] || row['Memo'] || row['description'] || 'No Desc';
+                     const desc = (row['Description'] || row['Memo'] || row['description'] || 'No Desc').trim();
                      let amt = parseFloat(row['Amount'] || row['amount'] || row['Grand Total']);
                      
-                     // Handle Debit/Credit columns common in some bank exports
+                     // Handle Debit/Credit columns
                      if(isNaN(amt)) {
                          const debit = parseFloat(row['Debit']);
                          const credit = parseFloat(row['Credit']);
@@ -30,17 +33,18 @@ export const Handlers = {
                          if(!isNaN(credit) && credit !== 0) amt = credit;
                      }
                      
-                     // Skip invalid rows
                      if(!dateStr || isNaN(amt)) return null;
 
                      const cleanDate = new Date(dateStr).toISOString().split('T')[0];
-
-                     // 2. Check for Duplicates immediately
                      const signature = `${cleanDate}-${desc}-${amt}`;
-                     if (existingSignatures.has(signature)) {
-                         return null; // Skip duplicate
+
+                     // 2. Check against Frequency Map
+                     if (existingCounts[signature] && existingCounts[signature] > 0) {
+                         // We found a match in existing data, so we assume this row is ALREADY imported.
+                         // Decrement the count so if there is a *second* identical row in CSV, it might get accepted.
+                         existingCounts[signature]--; 
+                         return null; 
                      }
-                     existingSignatures.add(signature); // Add to set to catch duplicates within the file itself
 
                      // Auto-Categorize based on Rules
                      let category = 'Uncategorized';
@@ -61,7 +65,7 @@ export const Handlers = {
                          reconciled: false, 
                          job: '' 
                      };
-                }).filter(Boolean); // Remove nulls (duplicates/invalid rows)
+                }).filter(Boolean);
                 
                 if (newTxs.length > 0) {
                     State.data = [...State.data, ...newTxs];
@@ -69,7 +73,7 @@ export const Handlers = {
                     UI.showToast(`Success! Imported ${newTxs.length} new transactions.`);
                     Handlers.saveSession();
                 } else {
-                    UI.showToast("No new transactions found (all duplicates).", "error");
+                    UI.showToast("No new data found (duplicates skipped).", "error");
                 }
             }
         });
@@ -85,9 +89,10 @@ export const Handlers = {
 
         if (State.user) {
             try {
-                document.getElementById('cloud-status').classList.remove('hidden');
+                const statusEl = document.getElementById('cloud-status');
+                if(statusEl) statusEl.classList.remove('hidden');
                 await setDoc(doc(db, 'users', State.user.uid), payload);
-                document.getElementById('cloud-status').classList.add('hidden');
+                if(statusEl) statusEl.classList.add('hidden');
                 UI.showToast("Saved to Cloud");
             } catch (e) { console.error(e); UI.showToast("Save Failed", "error"); }
         } else {
@@ -189,7 +194,7 @@ export const Handlers = {
         Handlers.saveSession();
     },
 
-    // --- RULES ---
+    // --- RULES & CATEGORIES ---
     addRule: () => {
         const key = document.getElementById('rule-keyword').value.trim();
         const cat = document.getElementById('rule-category').value;
@@ -202,13 +207,8 @@ export const Handlers = {
         }
     },
 
-    deleteRule: (index) => {
-        State.rules.splice(index, 1);
-        UI.renderRulesList();
-        Handlers.saveSession();
-    },
+    deleteRule: (index) => { State.rules.splice(index, 1); UI.renderRulesList(); Handlers.saveSession(); },
 
-    // --- CATEGORIES ---
     addCategory: () => {
         const name = document.getElementById('new-cat-name').value.trim();
         if(name && !State.categories.includes(name)) {
@@ -219,8 +219,6 @@ export const Handlers = {
             document.getElementById('new-cat-name').value = '';
             Handlers.saveSession();
             UI.showToast('Category Added');
-        } else if (State.categories.includes(name)) {
-            UI.showToast('Category exists', 'error');
         }
     },
 
@@ -234,7 +232,7 @@ export const Handlers = {
         Handlers.saveSession();
     },
 
-    // --- AP/AR (Invoices & Bills) ---
+    // --- AP/AR ---
     openApArModal: (type) => {
         document.getElementById('ap-ar-id').value = '';
         document.getElementById('ap-ar-type').value = type;
@@ -275,14 +273,9 @@ export const Handlers = {
 
     clearData: () => {
         if(confirm("Are you sure? This cannot be undone.")) {
-            State.data = [];
-            State.rules = [];
-            localStorage.removeItem('bk_data');
-            localStorage.removeItem('bk_rules');
-            localStorage.removeItem('bk_cats');
-            if(State.user) {
-                setDoc(doc(db, 'users', State.user.uid), { data: '[]', rules: '[]', categories: '[]' });
-            }
+            State.data = []; State.rules = [];
+            localStorage.removeItem('bk_data'); localStorage.removeItem('bk_rules'); localStorage.removeItem('bk_cats');
+            if(State.user) setDoc(doc(db, 'users', State.user.uid), { data: '[]', rules: '[]', categories: '[]' });
             UI.closeModal('confirm-modal');
             Handlers.refreshAll();
             UI.showToast("All Data Cleared");
@@ -292,23 +285,16 @@ export const Handlers = {
     exportToIIF: () => {
         const bankName = prompt("Enter Bank Account Name (QuickBooks):", "Checking");
         if(!bankName) return;
-        
         let iif = `!TRNS\tTRNSID\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tDOCNUM\tMEMO\n!SPL\tSPLID\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tDOCNUM\tMEMO\n!ENDTRNS\n`;
-        
         State.data.filter(d => d.type === 'transaction').forEach(tx => {
             const date = new Date(tx.date).toLocaleDateString('en-US', {month: '2-digit', day: '2-digit', year: 'numeric'});
             const type = tx.amount < 0 ? 'EXPENSE' : 'DEPOSIT';
-            const memo = (tx.description + ' ' + (tx.job || '')).trim();
-            
-            iif += `TRNS\t\t${type}\t${date}\t${bankName}\t\t${tx.amount.toFixed(2)}\t\t${memo}\n`;
-            iif += `SPL\t\t${type}\t${date}\t${tx.category}\t\t${(-tx.amount).toFixed(2)}\t\t${memo}\n`;
+            iif += `TRNS\t\t${type}\t${date}\t${bankName}\t\t${tx.amount.toFixed(2)}\t\t${(tx.description+' '+tx.job).trim()}\n`;
+            iif += `SPL\t\t${type}\t${date}\t${tx.category}\t\t${(-tx.amount).toFixed(2)}\t\t${(tx.description+' '+tx.job).trim()}\n`;
             iif += `ENDTRNS\n`;
         });
-
         const blob = new Blob([iif], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = 'quickbooks_import.iif';
-        a.click();
+        const a = document.createElement('a'); a.href = url; a.download = 'quickbooks_import.iif'; a.click();
     }
 };
