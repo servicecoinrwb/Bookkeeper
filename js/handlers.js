@@ -13,7 +13,6 @@ export const Handlers = {
                      const desc = row['Description'] || row['Memo'] || row['description'] || 'No Desc';
                      let amt = parseFloat(row['Amount'] || row['amount'] || row['Grand Total']);
                      
-                     // Handle Debit/Credit logic
                      if(isNaN(amt)) {
                          const debit = parseFloat(row['Debit']);
                          const credit = parseFloat(row['Credit']);
@@ -22,13 +21,9 @@ export const Handlers = {
                      }
                      if(!dateStr || isNaN(amt)) return null;
 
-                     // Apply Rules
                      let category = 'Uncategorized';
                      for(const rule of State.rules) {
-                         if(desc.toLowerCase().includes(rule.keyword.toLowerCase())) {
-                             category = rule.category;
-                             break;
-                         }
+                         if(desc.toLowerCase().includes(rule.keyword.toLowerCase())) { category = rule.category; break; }
                      }
 
                      return { id: Utils.generateId('tx'), type: 'transaction', date: new Date(dateStr).toISOString().split('T')[0], description: desc, amount: amt, category: category, reconciled: false, job: '' };
@@ -43,20 +38,24 @@ export const Handlers = {
     },
 
     saveSession: async () => {
+        const payload = {
+            data: JSON.stringify(State.data),
+            rules: JSON.stringify(State.rules),
+            categories: JSON.stringify(State.categories), // Save Categories too
+            lastUpdated: new Date()
+        };
+
         if (State.user) {
             try {
                 document.getElementById('cloud-status').classList.remove('hidden');
-                await setDoc(doc(db, 'users', State.user.uid), {
-                    data: JSON.stringify(State.data),
-                    rules: JSON.stringify(State.rules),
-                    lastUpdated: new Date()
-                });
+                await setDoc(doc(db, 'users', State.user.uid), payload);
                 document.getElementById('cloud-status').classList.add('hidden');
                 UI.showToast("Saved to Cloud");
             } catch (e) { console.error(e); UI.showToast("Save Failed", "error"); }
         } else {
-            localStorage.setItem('bk_data', JSON.stringify(State.data));
-            localStorage.setItem('bk_rules', JSON.stringify(State.rules));
+            localStorage.setItem('bk_data', payload.data);
+            localStorage.setItem('bk_rules', payload.rules);
+            localStorage.setItem('bk_cats', payload.categories);
             UI.showToast("Saved Locally");
         }
     },
@@ -68,22 +67,72 @@ export const Handlers = {
                 const d = snap.data();
                 State.data = JSON.parse(d.data || '[]');
                 if(d.rules) State.rules = JSON.parse(d.rules);
+                if(d.categories) State.categories = JSON.parse(d.categories);
             }
         } else {
             const local = localStorage.getItem('bk_data');
             const rules = localStorage.getItem('bk_rules');
+            const cats = localStorage.getItem('bk_cats');
             if(local) State.data = JSON.parse(local);
             if(rules) State.rules = JSON.parse(rules);
+            if(cats) State.categories = JSON.parse(cats);
         }
         Handlers.refreshAll();
+        UI.populateRuleCategories(); // Refresh dropdowns
+        UI.renderRulesList();
+        UI.renderCategoryManagementList();
     },
 
-    refreshAll: () => {
-        UI.renderDateFilters();
-        UI.updateDashboard();
-        if(State.currentView !== 'dashboard') UI.switchTab(State.currentView);
-    },
+    refreshAll: () => { UI.renderDateFilters(); UI.updateDashboard(); if(State.currentView !== 'dashboard') UI.switchTab(State.currentView); },
     
+    // --- RULES ---
+    addRule: () => {
+        const key = document.getElementById('rule-keyword').value.trim();
+        const cat = document.getElementById('rule-category').value;
+        if(key && cat) {
+            State.rules.push({ keyword: key, category: cat });
+            UI.renderRulesList();
+            document.getElementById('rule-keyword').value = '';
+            Handlers.saveSession();
+            UI.showToast('Rule Added');
+        }
+    },
+
+    deleteRule: (index) => {
+        State.rules.splice(index, 1);
+        UI.renderRulesList();
+        Handlers.saveSession();
+    },
+
+    // --- CATEGORIES ---
+    addCategory: () => {
+        const name = document.getElementById('new-cat-name').value.trim();
+        if(name && !State.categories.includes(name)) {
+            State.categories.push(name);
+            State.categories.sort();
+            UI.populateRuleCategories();
+            UI.renderCategoryManagementList();
+            document.getElementById('new-cat-name').value = '';
+            Handlers.saveSession();
+            UI.showToast('Category Added');
+        } else if (State.categories.includes(name)) {
+            UI.showToast('Category exists', 'error');
+        }
+    },
+
+    deleteCategory: (name) => {
+        if(name === 'Uncategorized') return;
+        State.categories = State.categories.filter(c => c !== name);
+        // Reset transactions with this category
+        State.data.forEach(t => { if(t.category === name) t.category = 'Uncategorized'; });
+        
+        UI.populateRuleCategories();
+        UI.renderCategoryManagementList();
+        Handlers.refreshAll();
+        Handlers.saveSession();
+    },
+
+    // ... (Keep existing editTransaction, saveTransactionEdit, toggleReconcile, ap/ar methods) ...
     editTransaction: (id) => {
         const tx = State.data.find(d => d.id === id);
         if(!tx) return;
@@ -92,11 +141,10 @@ export const Handlers = {
         document.getElementById('modal-job').value = tx.job || '';
         document.getElementById('modal-notes').value = tx.notes || '';
         
-        // Datalists
-        document.getElementById('category-list').innerHTML = State.categories.map(c => `<option value="${c}">`).join('');
-        const jobs = [...new Set(State.data.map(d => d.job).filter(Boolean))];
-        document.getElementById('job-list').innerHTML = jobs.map(j => `<option value="${j}">`).join('');
-
+        // Ensure datalist is populated
+        const catList = document.getElementById('category-list');
+        if(catList) catList.innerHTML = State.categories.map(c => `<option value="${c}">`).join('');
+        
         UI.openModal('edit-modal');
     },
 
@@ -107,10 +155,7 @@ export const Handlers = {
             tx.category = document.getElementById('modal-category').value;
             tx.job = document.getElementById('modal-job').value;
             tx.notes = document.getElementById('modal-notes').value;
-            
-            // Add category if new
             if(tx.category && !State.categories.includes(tx.category)) State.categories.push(tx.category);
-
             UI.closeModal('edit-modal');
             Handlers.refreshAll();
             Handlers.saveSession();
@@ -118,25 +163,65 @@ export const Handlers = {
         }
     },
 
-    toggleReconcile: (id) => {
-        const tx = State.data.find(d => d.id === id);
-        if(tx) { tx.reconciled = !tx.reconciled; Handlers.saveSession(); }
+    toggleReconcile: (id) => { const tx = State.data.find(d => d.id === id); if(tx) { tx.reconciled = !tx.reconciled; Handlers.saveSession(); } },
+    
+    openApArModal: (type) => {
+        document.getElementById('ap-ar-id').value = '';
+        document.getElementById('ap-ar-type').value = type;
+        document.getElementById('ap-ar-title').textContent = type === 'ar' ? 'Add Invoice' : 'Add Bill';
+        document.getElementById('ap-ar-party-label').textContent = type === 'ar' ? 'Customer' : 'Vendor';
+        document.getElementById('ap-ar-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('ap-ar-amount').value = '';
+        document.getElementById('ap-ar-number').value = '';
+        document.getElementById('ap-ar-party').value = '';
+        UI.openModal('ap-ar-modal');
     },
 
-    addRule: () => {
-        const key = document.getElementById('rule-keyword').value;
-        const cat = document.getElementById('rule-category').value;
-        if(key && cat) {
-            State.rules.push({ keyword: key, category: cat });
-            UI.renderRulesList();
-            document.getElementById('rule-keyword').value = '';
-            Handlers.saveSession();
-        }
-    },
-
-    deleteRule: (index) => {
-        State.rules.splice(index, 1);
-        UI.renderRulesList();
+    saveApAr: () => {
+        const type = document.getElementById('ap-ar-type').value;
+        const item = {
+            id: Utils.generateId(type),
+            type: type,
+            party: document.getElementById('ap-ar-party').value,
+            number: document.getElementById('ap-ar-number').value,
+            date: document.getElementById('ap-ar-date').value,
+            amount: parseFloat(document.getElementById('ap-ar-amount').value) || 0,
+            status: 'unpaid'
+        };
+        State.data.push(item);
+        UI.closeModal('ap-ar-modal');
+        Handlers.refreshAll();
         Handlers.saveSession();
+    },
+
+    toggleApArStatus: (id) => {
+        const item = State.data.find(d => d.id === id);
+        if(item) { item.status = item.status === 'unpaid' ? 'paid' : 'unpaid'; Handlers.refreshAll(); Handlers.saveSession(); }
+    },
+
+    clearData: () => {
+        State.data = []; State.rules = [];
+        localStorage.removeItem('bk_data'); localStorage.removeItem('bk_rules');
+        if(State.user) setDoc(doc(db, 'users', State.user.uid), { data: '[]', rules: '[]' });
+        UI.closeModal('confirm-modal');
+        Handlers.refreshAll();
+    },
+    
+    exportToIIF: () => {
+        const bankName = prompt("Bank Account Name:", "Checking");
+        if(!bankName) return;
+        let iif = `!TRNS\tTRNSID\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tDOCNUM\tMEMO\n!SPL\tSPLID\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tDOCNUM\tMEMO\n!ENDTRNS\n`;
+        State.data.filter(d => d.type === 'transaction').forEach(tx => {
+            const date = new Date(tx.date).toLocaleDateString('en-US', {month: '2-digit', day: '2-digit', year: 'numeric'});
+            const type = tx.amount < 0 ? 'EXPENSE' : 'DEPOSIT';
+            iif += `TRNS\t\t${type}\t${date}\t${bankName}\t\t${tx.amount.toFixed(2)}\t\t${(tx.description+' '+tx.job).trim()}\n`;
+            iif += `SPL\t\t${type}\t${date}\t${tx.category}\t\t${(-tx.amount).toFixed(2)}\t\t${(tx.description+' '+tx.job).trim()}\n`;
+            iif += `ENDTRNS\n`;
+        });
+        const blob = new Blob([iif], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'quickbooks.iif';
+        a.click();
     }
 };
