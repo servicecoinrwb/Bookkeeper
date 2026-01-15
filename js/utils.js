@@ -13,5 +13,9 @@ export const Utils = {
 
     generateId: (prefix = 'id') => {
         return `${prefix}-${Date.now()}-${Math.floor(Math.random()*1000)}`;
+    },
+
+    formatDateForInput: (dateObj) => {
+        return dateObj.toISOString().split('T')[0];
     }
 };
