@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.init();
     Handlers.loadSession();
 
-    // Helper to safely add event listeners
     const addListener = (id, event, handler) => {
         const el = document.getElementById(id);
         if (el) el.addEventListener(event, handler);
@@ -18,50 +17,53 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- Inputs & Filters ---
     addListener('csv-file', 'change', (e) => Handlers.importCSV(e.target.files[0]));
     
-    // Desktop Filters
-    addListener('year-filter', 'change', (e) => { State.filters.year = e.target.value; Handlers.refreshAll(); });
-    addListener('month-filter', 'change', (e) => { State.filters.month = e.target.value; Handlers.refreshAll(); });
-    
-    // Mobile Filters
-    addListener('mobile-year-filter', 'change', (e) => { State.filters.year = e.target.value; Handlers.refreshAll(); });
-    addListener('mobile-month-filter', 'change', (e) => { State.filters.month = e.target.value; Handlers.refreshAll(); });
+    // Filters
+    const updateFilter = (field, val) => {
+        State.filters[field] = val;
+        Handlers.refreshAll();
+        if(State.currentView === 'taxes') UI.renderTaxes();
+    };
 
-    // Live Search
+    addListener('year-filter', 'change', (e) => updateFilter('year', e.target.value));
+    addListener('month-filter', 'change', (e) => updateFilter('month', e.target.value));
+    addListener('mobile-year-filter', 'change', (e) => updateFilter('year', e.target.value));
+    addListener('mobile-month-filter', 'change', (e) => updateFilter('month', e.target.value));
+
+    // Search Listeners
     addListener('tx-search', 'input', () => UI.renderTransactions());
     addListener('ar-search', 'input', () => UI.renderSimpleTable('ar', 'ar-container'));
     addListener('ap-search', 'input', () => UI.renderSimpleTable('ap', 'ap-container'));
     
-    // NEW: Report Search
     addListener('report-search', 'input', () => {
-        // We re-render the active report to apply the search filter
         const activeReport = document.querySelector('.rep-tab.border-b-2.border-brand-600');
-        if(activeReport) {
-            // Extract the report type from ID (e.g. rep-tab-vendors -> vendors)
-            const type = activeReport.id.replace('rep-tab-', '');
-            UI.switchReport(type);
-        }
+        if(activeReport) UI.switchReport(activeReport.id.replace('rep-tab-', ''));
     });
-    
-    // Rec All Checkbox
+
+    // Rec All
     addListener('rec-all-checkbox', 'change', (e) => Handlers.toggleAllRec(e.target.checked));
 
     // Calculators
     addListener('tax-rate-input', 'input', () => UI.renderTaxes());
     addListener('recon-input', 'input', () => UI.updateReconCalc());
 
-    // --- Action Buttons ---
+    // --- Actions ---
     addListener('save-session-btn', 'click', Handlers.saveSession);
     addListener('btn-add-rule', 'click', Handlers.addRule);
     addListener('btn-save-tx', 'click', Handlers.saveTransactionEdit);
     addListener('btn-save-apar', 'click', Handlers.saveApAr);
-    
-    // Clear Data Flow
     addListener('clear-session-btn', 'click', () => UI.openModal('confirm-modal'));
     addListener('btn-confirm-clear', 'click', Handlers.clearData);
-    
-    // Categories & Export
     addListener('btn-add-cat', 'click', Handlers.addCategory);
     addListener('btn-export', 'click', Handlers.exportToIIF);
+    
+    // --- Enter Key Support for Inputs ---
+    document.getElementById('rule-keyword')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') Handlers.addRule();
+    });
+    
+    document.getElementById('new-cat-name')?.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') Handlers.addCategory();
+    });
 
     // --- Auth ---
     addListener('login-btn', 'click', () => signInWithPopup(auth, provider));
