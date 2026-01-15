@@ -23,6 +23,8 @@
         @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        /* Distinct Selects */
+        .select-bold { background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e"); background-position: right 0.5rem center; background-repeat: no-repeat; background-size: 1.5em 1.5em; padding-right: 2.5rem; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
     </style>
 </head>
 <body class="text-slate-800 h-screen flex overflow-hidden bg-slate-100">
@@ -78,11 +80,11 @@
                     <span id="cloud-status" class="hidden text-[10px] uppercase font-bold tracking-wider text-brand-600 flex items-center gap-1"><i data-lucide="refresh-cw" class="w-3 h-3 animate-spin"></i> Syncing...</span>
                 </div>
                 
-                <!-- NEW Date Filters: Clear & Distinct -->
+                <!-- Date Filters -->
                 <div class="flex items-center gap-2 sm:gap-3">
                     <div class="hidden sm:flex items-center gap-2">
-                        <select id="month-filter" class="bg-white border border-slate-300 text-slate-700 text-sm font-bold py-2 pl-3 pr-8 rounded-lg shadow-sm focus:ring-2 focus:ring-brand-500 hover:border-brand-500"></select>
-                        <select id="year-filter" class="bg-white border border-slate-300 text-slate-700 text-sm font-bold py-2 pl-3 pr-8 rounded-lg shadow-sm focus:ring-2 focus:ring-brand-500 hover:border-brand-500"></select>
+                        <select id="month-filter" class="select-bold appearance-none bg-white border border-slate-300 text-slate-700 text-sm font-bold py-2 pl-3 pr-8 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 hover:border-brand-500 transition-colors"></select>
+                        <select id="year-filter" class="select-bold appearance-none bg-white border border-slate-300 text-slate-700 text-sm font-bold py-2 pl-3 pr-8 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-500 hover:border-brand-500 transition-colors"></select>
                     </div>
 
                     <div class="h-8 w-px bg-slate-200 mx-2 hidden sm:block"></div>
@@ -98,7 +100,7 @@
                 </div>
             </div>
             
-            <!-- Mobile Filters (Visible only on small screens) -->
+            <!-- Mobile Filters -->
             <div class="sm:hidden border-t border-slate-100 p-2 flex justify-center bg-slate-50">
                  <div class="flex items-center gap-2 w-full max-w-xs">
                     <select id="mobile-month-filter" class="flex-1 bg-white border border-slate-300 text-slate-700 text-sm font-semibold py-2 rounded-lg text-center"></select>
@@ -137,34 +139,23 @@
                     </div>
                 </div>
                 <div class="bg-white rounded-xl border shadow-sm overflow-hidden overflow-x-auto">
-                    <table class="min-w-full divide-y divide-slate-200 text-sm">
-                        <thead class="bg-slate-50">
-                            <tr>
-                                <th class="px-6 py-3 text-left">
-                                    <div class="flex items-center gap-2">
-                                        <input type="checkbox" id="rec-all-checkbox" class="rounded text-brand-600 focus:ring-brand-500">
-                                        <span>Rec</span>
-                                    </div>
-                                </th>
-                                <th class="px-6 py-3 text-left">Date</th>
-                                <th class="px-6 py-3 text-left">Description</th>
-                                <th class="px-6 py-3 text-left">Amount</th>
-                                <th class="px-6 py-3 text-left">Category</th>
-                                <th class="px-6 py-3 text-right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tx-table-body" class="bg-white divide-y divide-slate-200"></tbody>
-                    </table>
+                    <table class="min-w-full divide-y divide-slate-200 text-sm"><thead class="bg-slate-50"><tr><th class="px-6 py-3 text-left"><div class="flex items-center gap-2"><input type="checkbox" id="rec-all-checkbox" class="rounded text-brand-600 focus:ring-brand-500"><span>Rec</span></div></th><th class="px-6 py-3 text-left">Date</th><th class="px-6 py-3 text-left">Description</th><th class="px-6 py-3 text-left">Amount</th><th class="px-6 py-3 text-left">Category</th><th class="px-6 py-3 text-right">Action</th></tr></thead><tbody id="tx-table-body" class="bg-white divide-y divide-slate-200"></tbody></table>
                 </div>
             </div>
 
             <!-- Reports View -->
             <div id="view-reports" class="hidden space-y-6 fade-enter">
-                <div class="flex flex-wrap gap-2 border-b border-slate-200 pb-1">
-                    <button onclick="App.ui.switchReport('pl')" id="rep-tab-pl" class="rep-tab text-sm font-medium px-4 py-2 text-brand-600 border-b-2 border-brand-600 bg-brand-50/50 rounded-t-lg">Profit & Loss</button>
-                    <button onclick="App.ui.switchReport('aging-ar')" id="rep-tab-aging-ar" class="rep-tab text-sm font-medium px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-t-lg">A/R Aging</button>
-                    <button onclick="App.ui.switchReport('aging-ap')" id="rep-tab-aging-ap" class="rep-tab text-sm font-medium px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-t-lg">A/P Aging</button>
-                    <button onclick="App.ui.switchReport('vendors')" id="rep-tab-vendors" class="rep-tab text-sm font-medium px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-t-lg">Vendors</button>
+                <div class="flex flex-wrap items-center justify-between border-b border-slate-200 pb-1">
+                    <div class="flex gap-2">
+                        <button onclick="App.ui.switchReport('pl')" id="rep-tab-pl" class="rep-tab text-sm font-medium px-4 py-2 text-brand-600 border-b-2 border-brand-600 bg-brand-50/50 rounded-t-lg">Profit & Loss</button>
+                        <button onclick="App.ui.switchReport('aging-ar')" id="rep-tab-aging-ar" class="rep-tab text-sm font-medium px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-t-lg">A/R Aging</button>
+                        <button onclick="App.ui.switchReport('aging-ap')" id="rep-tab-aging-ap" class="rep-tab text-sm font-medium px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-t-lg">A/P Aging</button>
+                        <button onclick="App.ui.switchReport('vendors')" id="rep-tab-vendors" class="rep-tab text-sm font-medium px-4 py-2 text-slate-500 hover:bg-slate-50 rounded-t-lg">Vendors</button>
+                    </div>
+                    <!-- NEW: Reports Search Bar -->
+                    <div class="pb-1">
+                         <input type="text" id="report-search" placeholder="Search reports..." class="border border-slate-300 p-1.5 rounded-lg w-48 text-xs focus:ring-2 focus:ring-brand-500 outline-none">
+                    </div>
                 </div>
                 <div id="report-pl" class="report-view bg-white p-8 rounded-xl shadow-sm border border-slate-200 max-w-4xl mx-auto"></div>
                 <div id="report-aging-ar" class="report-view hidden bg-white p-8 rounded-xl shadow-sm border border-slate-200"></div>
@@ -210,8 +201,7 @@
         </div>
     </main>
 
-    <!-- Modals (Edit, Rules, Category, Reconcile, AP/AR, Batch, Confirm) -->
-    <!-- (Note: Modals are essential and preserved from previous context) -->
+    <!-- Modals -->
     <div id="edit-modal" class="fixed inset-0 z-50 hidden bg-black/50 flex items-center justify-center p-4">
         <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 space-y-4">
             <h3 class="font-bold text-lg">Edit Transaction</h3>
