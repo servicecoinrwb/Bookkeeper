@@ -77,27 +77,99 @@ export const UI = {
     },
 
     setupCharts() {
-        this.charts.main = new Chart(document.getElementById('mainChart').getContext('2d'), { type: 'bar', data: { labels: [], datasets: [] }, options: { responsive: true, maintainAspectRatio: false } });
-        // (Expense chart is optional, keeping main chart for brevity)
+        // Helper to safely create charts only if the canvas exists
+        const createChart = (id, type, options = {}) => {
+            const el = document.getElementById(id);
+            if (!el) return null;
+            return new Chart(el.getContext('2d'), { 
+                type, 
+                data: { labels: [], datasets: [] }, 
+                options: { responsive: true, maintainAspectRatio: false, ...options } 
+            });
+        };
+
+        this.charts.main = createChart('mainChart', 'bar');
+        this.charts.profit = createChart('profitChart', 'line', { 
+            plugins: { legend: { display: false }, title: { display: true, text: 'Net Profit Trend' } } 
+        });
+        this.charts.income = createChart('incomeChart', 'pie', { 
+            plugins: { legend: { position: 'right' }, title: { display: true, text: 'Income Sources' } } 
+        });
+        this.charts.expense = createChart('expenseChart', 'doughnut', { 
+            plugins: { legend: { position: 'right' }, title: { display: true, text: 'Expense Breakdown' } } 
+        });
     },
 
     updateCharts(txs) {
+        // 1. Prepare Monthly Data (for Bar & Line charts)
         const monthlyData = {};
         txs.forEach(t => {
             const month = new Date(t.date).toLocaleString('default', { month: 'short' });
             if(!monthlyData[month]) monthlyData[month] = { income: 0, expense: 0 };
             if(t.amount > 0 && t.category !== 'Transfer') monthlyData[month].income += t.amount;
-            if(t.amount < 0 && t.category !== 'Transfer') monthlyData[month].expense += Math.abs(t.amount);
+            if(t.amount < 0 && t.category !== 'Transfer' && t.category !== "Owner's Draw") monthlyData[month].expense += Math.abs(t.amount);
         });
         const labels = Object.keys(monthlyData).reverse();
-        this.charts.main.data = {
-            labels: labels,
-            datasets: [
-                { label: 'Income', data: labels.map(l => monthlyData[l].income), backgroundColor: '#10b981' },
-                { label: 'Expenses', data: labels.map(l => monthlyData[l].expense), backgroundColor: '#ef4444' }
-            ]
-        };
-        this.charts.main.update();
+
+        // 2. Update Main Bar Chart (Income vs Expense)
+        if (this.charts.main) {
+            this.charts.main.data = {
+                labels: labels,
+                datasets: [
+                    { label: 'Income', data: labels.map(l => monthlyData[l].income), backgroundColor: '#10b981' },
+                    { label: 'Expenses', data: labels.map(l => monthlyData[l].expense), backgroundColor: '#ef4444' }
+                ]
+            };
+            this.charts.main.update();
+        }
+
+        // 3. Update Profit Trend Line Chart
+        if (this.charts.profit) {
+            this.charts.profit.data = {
+                labels: labels,
+                datasets: [{
+                    label: 'Net Profit',
+                    data: labels.map(l => monthlyData[l].income - monthlyData[l].expense),
+                    borderColor: '#3b82f6',
+                    backgroundColor: '#3b82f6',
+                    tension: 0.3,
+                    fill: false
+                }]
+            };
+            this.charts.profit.update();
+        }
+
+        // 4. Update Income Breakdown (Pie)
+        if (this.charts.income) {
+            const incomeCats = {};
+            txs.filter(t => t.amount > 0 && t.category !== 'Transfer').forEach(t => {
+                incomeCats[t.category] = (incomeCats[t.category] || 0) + t.amount;
+            });
+            this.charts.income.data = {
+                labels: Object.keys(incomeCats),
+                datasets: [{
+                    data: Object.values(incomeCats),
+                    backgroundColor: ['#10b981', '#34d399', '#6ee7b7', '#a7f3d0', '#065f46']
+                }]
+            };
+            this.charts.income.update();
+        }
+
+        // 5. Update Expense Breakdown (Doughnut)
+        if (this.charts.expense) {
+            const expenseCats = {};
+            txs.filter(t => t.amount < 0 && t.category !== 'Transfer' && t.category !== "Owner's Draw").forEach(t => {
+                expenseCats[t.category] = (expenseCats[t.category] || 0) + Math.abs(t.amount);
+            });
+            this.charts.expense.data = {
+                labels: Object.keys(expenseCats),
+                datasets: [{
+                    data: Object.values(expenseCats),
+                    backgroundColor: ['#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#eab308', '#22c55e', '#f43f5e', '#a855f7']
+                }]
+            };
+            this.charts.expense.update();
+        }
     },
 
     renderTransactions() {
