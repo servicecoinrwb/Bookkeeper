@@ -1,3 +1,5 @@
+const today = new Date();
+
 export const State = {
     user: null,
     data: [],
@@ -6,9 +8,11 @@ export const State = {
         { keyword: 'Home Depot', category: 'Materials' }
     ],
     currentView: 'dashboard',
+    
+    // CHANGE: Defaults to Current Month/Year
     filters: { 
-        year: 'all', 
-        month: 'all', 
+        year: today.getFullYear().toString(), 
+        month: (today.getMonth() + 1).toString(), 
         search: '' 
     },
     
