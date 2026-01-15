@@ -9,8 +9,9 @@ export const Handlers = {
             header: true, 
             skipEmptyLines: true,
             complete: (results) => {
-                // 1. Build a Frequency Map of existing transactions
-                // Key: "2023-10-25-Home Depot-50.00" -> Value: 2 (if it appears twice)
+                const rawRows = results.data;
+                
+                // 1. Build Frequency Map of existing data (to detect duplicates)
                 const existingCounts = {};
                 State.data.forEach(tx => {
                     if(tx.type === 'transaction') {
@@ -19,13 +20,14 @@ export const Handlers = {
                     }
                 });
 
-                const newTxs = results.data.map(row => {
-                     // Robust Column Matching
+                // Helper to parse a single CSV row
+                const parseRow = (row) => {
+                     // Try multiple common column names
                      const dateStr = row['Date'] || row['date'] || row['TransDate'];
                      const desc = (row['Description'] || row['Memo'] || row['description'] || 'No Desc').trim();
                      let amt = parseFloat(row['Amount'] || row['amount'] || row['Grand Total']);
                      
-                     // Handle Debit/Credit columns
+                     // Handle Debit/Credit columns (common in some bank exports)
                      if(isNaN(amt)) {
                          const debit = parseFloat(row['Debit']);
                          const credit = parseFloat(row['Credit']);
@@ -35,18 +37,19 @@ export const Handlers = {
                      
                      if(!dateStr || isNaN(amt)) return null;
 
-                     const cleanDate = new Date(dateStr).toISOString().split('T')[0];
-                     const signature = `${cleanDate}-${desc}-${amt}`;
-
-                     // 2. Check against Frequency Map
-                     if (existingCounts[signature] && existingCounts[signature] > 0) {
-                         // We found a match in existing data, so we assume this row is ALREADY imported.
-                         // Decrement the count so if there is a *second* identical row in CSV, it might get accepted.
-                         existingCounts[signature]--; 
-                         return null; 
+                     // Improved Date Parsing: Keeps local date (YYYY-MM-DD) without timezone shift
+                     let cleanDate;
+                     try {
+                        const d = new Date(dateStr);
+                        // Use 'en-CA' because it outputs YYYY-MM-DD format consistently
+                        cleanDate = d.toLocaleDateString('en-CA'); 
+                     } catch(e) {
+                         return null; // Invalid date
                      }
+                     
+                     if (cleanDate === 'Invalid Date') return null;
 
-                     // Auto-Categorize based on Rules
+                     // Auto-Categorize
                      let category = 'Uncategorized';
                      for(const rule of State.rules) {
                          if(desc.toLowerCase().includes(rule.keyword.toLowerCase())) { 
@@ -65,15 +68,42 @@ export const Handlers = {
                          reconciled: false, 
                          job: '' 
                      };
+                };
+
+                // 2. Try to filter out duplicates first
+                const newTxs = rawRows.map(row => {
+                     const tx = parseRow(row);
+                     if (!tx) return null;
+
+                     const signature = `${tx.date}-${tx.description}-${tx.amount}`;
+
+                     // If we have seen this exact transaction before, skip it (decrement count)
+                     if (existingCounts[signature] && existingCounts[signature] > 0) {
+                         existingCounts[signature]--; 
+                         return null; 
+                     }
+                     return tx;
                 }).filter(Boolean);
                 
+                // 3. Logic: If valid new data, import. If not, Ask User.
                 if (newTxs.length > 0) {
                     State.data = [...State.data, ...newTxs];
                     Handlers.refreshAll();
                     UI.showToast(`Success! Imported ${newTxs.length} new transactions.`);
                     Handlers.saveSession();
                 } else {
-                    UI.showToast("No new data found (duplicates skipped).", "error");
+                    // This is the fix for your issue:
+                    if (confirm("System detected these might be duplicates. Force import anyway?")) {
+                         const forceTxs = rawRows.map(parseRow).filter(Boolean);
+                         if (forceTxs.length > 0) {
+                             State.data = [...State.data, ...forceTxs];
+                             Handlers.refreshAll();
+                             UI.showToast(`Forced import of ${forceTxs.length} transactions.`);
+                             Handlers.saveSession();
+                         } else {
+                             UI.showToast("Could not parse any rows from file.", "error");
+                         }
+                    }
                 }
             }
         });
@@ -132,7 +162,6 @@ export const Handlers = {
         if(State.currentView !== 'dashboard') UI.switchTab(State.currentView); 
     },
 
-    // --- TRANSACTION EDITING ---
     editTransaction: (id) => {
         const tx = State.data.find(d => d.id === id);
         if(!tx) return;
@@ -167,7 +196,6 @@ export const Handlers = {
             if(newCat && !State.categories.includes(newCat)) State.categories.push(newCat);
             UI.closeModal('edit-modal');
             
-            // Batch Update Check
             if (oldCat !== newCat) {
                 const similar = State.data.filter(t => t.type === 'transaction' && t.id !== id && t.description.toLowerCase().includes(tx.description.split(' ')[0].toLowerCase()));
                 if(similar.length > 0) {
@@ -194,7 +222,6 @@ export const Handlers = {
         Handlers.saveSession();
     },
 
-    // --- RULES & CATEGORIES ---
     addRule: () => {
         const key = document.getElementById('rule-keyword').value.trim();
         const cat = document.getElementById('rule-category').value;
@@ -232,7 +259,6 @@ export const Handlers = {
         Handlers.saveSession();
     },
 
-    // --- AP/AR ---
     openApArModal: (type) => {
         document.getElementById('ap-ar-id').value = '';
         document.getElementById('ap-ar-type').value = type;
