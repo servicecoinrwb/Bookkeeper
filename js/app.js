@@ -6,6 +6,10 @@ import { onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/fi
 
 // Init
 const init = async () => {
+    // FORCE HIDE TOAST ON LOAD
+    const toast = document.getElementById('toast');
+    if(toast) toast.style.transform = 'translateX(150%)';
+
     onAuthStateChanged(auth, async (user) => {
         if (user) {
             state.currentUser = user;
@@ -61,6 +65,7 @@ const performAutoCleanup = () => {
     const clean = [];
     let dupeCount = 0;
 
+    // Sort to keep categorized items first
     state.transactions.sort((a, b) => {
         if (a.reconciled && !b.reconciled) return -1;
         if (!a.reconciled && b.reconciled) return 1;
@@ -112,7 +117,7 @@ tabs.forEach(tab => {
 
 // --- Action Buttons ---
 const saveBtn = document.getElementById('save-session-button');
-if(saveBtn) saveBtn.addEventListener('click', () => { state.persist(); showToast('Saved!'); });
+if(saveBtn) saveBtn.addEventListener('click', () => { state.persist(); showToast('Session Saved!'); });
 
 const clearBtn = document.getElementById('clear-session-button');
 if(clearBtn) clearBtn.addEventListener('click', () => document.getElementById('confirm-modal').classList.remove('hidden'));
@@ -125,7 +130,7 @@ document.getElementById('export-button').addEventListener('click', () => exportT
 document.getElementById('year-filter').addEventListener('change', () => { UI.renderDashboard(); UI.renderTransactions(); });
 document.getElementById('month-filter').addEventListener('change', () => { UI.renderDashboard(); UI.renderTransactions(); });
 
-// --- Edit Transaction & Logic ---
+// --- Edit Transaction & Batch Logic ---
 const txTable = document.getElementById('transaction-table');
 if(txTable) {
     txTable.addEventListener('click', (e) => {
@@ -140,16 +145,16 @@ if(txTable) {
             document.getElementById('modal-category').value = tx.category;
             document.getElementById('edit-modal').classList.remove('hidden');
         }
-        // Reconcile Checkbox
+        // Reconcile Checkbox Logic
         if(e.target.type === 'checkbox' && e.target.classList.contains('reconcile-checkbox')) {
             const id = e.target.dataset.id;
             if (id) {
-                const tx = state.transactions.find(t => t.id === id);
-                if(tx) {
-                    tx.reconciled = e.target.checked;
-                    state.persist(); 
-                    UI.renderDashboard(); 
-                }
+                 const tx = state.transactions.find(t => t.id === id);
+                 if(tx) {
+                     tx.reconciled = e.target.checked;
+                     state.persist(); 
+                     UI.renderDashboard(); 
+                 }
             }
         }
     });
@@ -246,6 +251,7 @@ if(rulesList) {
     });
 }
 
+
 // --- AP/AR Logic ---
 const openAPAR = (type, id = null) => {
     const modal = document.getElementById('ap-ar-modal');
@@ -319,26 +325,29 @@ if(startReconBtn) {
     });
 }
 
-document.getElementById('recon-bank-balance').addEventListener('input', (e) => {
-    const bankBal = parseFloat(e.target.value) || 0;
-    const clearedTotal = state.transactions
-        .filter(t => t.type === 'transaction' && t.reconciled)
-        .reduce((sum, t) => sum + t.amount, 0);
+const reconInput = document.getElementById('recon-bank-balance');
+if(reconInput) {
+    reconInput.addEventListener('input', (e) => {
+        const bankBal = parseFloat(e.target.value) || 0;
+        const clearedTotal = state.transactions
+            .filter(t => t.type === 'transaction' && t.reconciled)
+            .reduce((sum, t) => sum + t.amount, 0);
+            
+        const diff = bankBal - clearedTotal;
+        const diffEl = document.getElementById('recon-difference');
+        diffEl.textContent = formatCurrency(diff);
         
-    const diff = bankBal - clearedTotal;
-    const diffEl = document.getElementById('recon-difference');
-    diffEl.textContent = formatCurrency(diff);
-    
-    if(Math.abs(diff) < 0.01) {
-        diffEl.className = "text-green-600 font-bold";
-        document.getElementById('recon-success-msg').classList.remove('hidden');
-        document.getElementById('recon-error-msg').classList.add('hidden');
-    } else {
-        diffEl.className = "text-red-600 font-bold";
-        document.getElementById('recon-success-msg').classList.add('hidden');
-        document.getElementById('recon-error-msg').classList.remove('hidden');
-    }
-});
+        if(Math.abs(diff) < 0.01) {
+            diffEl.className = "text-green-600 font-bold";
+            document.getElementById('recon-success-msg').classList.remove('hidden');
+            document.getElementById('recon-error-msg').classList.add('hidden');
+        } else {
+            diffEl.className = "text-red-600 font-bold";
+            document.getElementById('recon-success-msg').classList.add('hidden');
+            document.getElementById('recon-error-msg').classList.remove('hidden');
+        }
+    });
+}
 
 document.getElementById('close-recon-btn').addEventListener('click', () => {
     document.getElementById('reconcile-modal').classList.add('hidden');
@@ -349,6 +358,11 @@ document.getElementById('csv-file').addEventListener('change', (e) => {
     const file = e.target.files[0];
     if(!file) return;
     
+    // Simple Deduplication Signature
+    const existingSignatures = new Set(
+        state.transactions.map(t => `${t.date}-${t.description}-${t.amount}`)
+    );
+
     Papa.parse(file, {
         header: true,
         skipEmptyLines: true,
@@ -363,6 +377,9 @@ document.getElementById('csv-file').addEventListener('change', (e) => {
                 
                 const cleanDate = typeof date === 'string' ? date : new Date().toISOString();
                 const cleanAmt = parseFloat(amt) || 0;
+                
+                const sig = `${cleanDate}-${desc}-${cleanAmt}`;
+                if(existingSignatures.has(sig)) return null;
 
                 return {
                     id: `tx-${Date.now()}-${i}`,
@@ -379,6 +396,8 @@ document.getElementById('csv-file').addEventListener('change', (e) => {
                 state.addTransactions(newTxs);
                 refreshApp(); 
                 showToast(`Imported ${newTxs.length} items.`);
+            } else {
+                showToast("No new transactions found.");
             }
         }
     });
