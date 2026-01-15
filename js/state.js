@@ -1,6 +1,10 @@
 export const State = {
     user: null,
     data: [],
+    rules: [
+        { keyword: 'Speedway', category: 'Vehicle Expenses' },
+        { keyword: 'Home Depot', category: 'Materials' }
+    ],
     currentView: 'dashboard',
     filters: { 
         year: 'all', 
@@ -10,17 +14,8 @@ export const State = {
     
     // Default Categories
     categories: [
-        'Income', 'COGS', 'Materials', 'Labor', 
-        'Fuel', 'Rent', 'Utilities', 'Owner Draw', 
-        'Transfer', 'Uncategorized'
-    ],
-
-    // Methods to manipulate data
-    addTransactions(newTxs) {
-        this.data = [...this.data, ...newTxs];
-    },
-
-    clearData() {
-        this.data = [];
-    }
+        'Income (Sales)', 'COGS - Equipment', 'COGS - Materials', 'Subcontractors',
+        'Payroll', 'Vehicle Expenses', 'Tools', 'Marketing', 'Insurance',
+        'Office Supplies', 'Rent', 'Utilities', 'Owner\'s Draw', 'Transfer', 'Uncategorized'
+    ]
 };
