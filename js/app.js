@@ -3,7 +3,6 @@ import { UI } from './ui.js';
 import { Handlers } from './handlers.js';
 import { auth, onAuthStateChanged, signInWithPopup, signOut, provider, doc, getDoc, db } from './firebase.js';
 
-// Expose Globals for HTML onclicks
 window.App = { ui: UI, handlers: Handlers };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -13,15 +12,23 @@ document.addEventListener('DOMContentLoaded', () => {
     // File Inputs
     document.getElementById('csv-file').addEventListener('change', (e) => Handlers.importCSV(e.target.files[0]));
     
-    // Filters
+    // Filters (Desktop)
     document.getElementById('year-filter').addEventListener('change', (e) => { State.filters.year = e.target.value; Handlers.refreshAll(); });
     document.getElementById('month-filter').addEventListener('change', (e) => { State.filters.month = e.target.value; Handlers.refreshAll(); });
+    
+    // Filters (Mobile - New)
+    const mYear = document.getElementById('mobile-year-filter');
+    if(mYear) mYear.addEventListener('change', (e) => { State.filters.year = e.target.value; Handlers.refreshAll(); });
+    
+    const mMonth = document.getElementById('mobile-month-filter');
+    if(mMonth) mMonth.addEventListener('change', (e) => { State.filters.month = e.target.value; Handlers.refreshAll(); });
+
     document.getElementById('tx-search').addEventListener('input', () => UI.renderTransactions());
 
-    // Tax Calculator Input
+    // Tax Calculator
     document.getElementById('tax-rate-input').addEventListener('input', () => UI.renderTaxes());
 
-    // Reconcile Input
+    // Reconcile
     document.getElementById('recon-input').addEventListener('input', () => UI.updateReconCalc());
 
     // Rules
@@ -45,7 +52,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } else {
             document.getElementById('login-btn').classList.remove('hidden');
             document.getElementById('user-profile').classList.add('hidden');
-            // Guest mode: Rely on Handlers.loadSession from top of this file
         }
     });
 });
