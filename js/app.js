@@ -9,44 +9,46 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.init();
     Handlers.loadSession();
 
-    // Helper to safely add event listeners
+    // Helper
     const addListener = (id, event, handler) => {
         const el = document.getElementById(id);
         if (el) el.addEventListener(event, handler);
-        // Note: We silent fail here because some buttons use onclick="" in HTML now
     };
 
     // --- Inputs & Filters ---
     addListener('csv-file', 'change', (e) => Handlers.importCSV(e.target.files[0]));
     
-    // Desktop Filters
-    addListener('year-filter', 'change', (e) => { State.filters.year = e.target.value; Handlers.refreshAll(); });
-    addListener('month-filter', 'change', (e) => { State.filters.month = e.target.value; Handlers.refreshAll(); });
-    
-    // Mobile Filters
-    addListener('mobile-year-filter', 'change', (e) => { State.filters.year = e.target.value; Handlers.refreshAll(); });
-    addListener('mobile-month-filter', 'change', (e) => { State.filters.month = e.target.value; Handlers.refreshAll(); });
+    // Universal Filter Handler
+    const updateFilter = (field, val) => {
+        State.filters[field] = val;
+        Handlers.refreshAll();
+        // Force Tax Update if in view
+        if(State.currentView === 'taxes') UI.renderTaxes(); 
+    };
 
-    // Live Search
+    addListener('year-filter', 'change', (e) => updateFilter('year', e.target.value));
+    addListener('month-filter', 'change', (e) => updateFilter('month', e.target.value));
+    addListener('mobile-year-filter', 'change', (e) => updateFilter('year', e.target.value));
+    addListener('mobile-month-filter', 'change', (e) => updateFilter('month', e.target.value));
+
+    // Live Search & Calc
     addListener('tx-search', 'input', () => UI.renderTransactions());
-    
-    // Calculators
     addListener('tax-rate-input', 'input', () => UI.renderTaxes());
     addListener('recon-input', 'input', () => UI.updateReconCalc());
 
-    // --- Action Buttons (IDs Fixed to match new HTML) ---
+    // --- Actions ---
     addListener('save-session-btn', 'click', Handlers.saveSession);
-    addListener('btn-add-rule', 'click', Handlers.addRule); // Fixed ID
+    addListener('btn-add-rule', 'click', Handlers.addRule);
     addListener('btn-save-tx', 'click', Handlers.saveTransactionEdit);
-    addListener('btn-save-apar', 'click', Handlers.saveApAr); // Fixed ID
+    addListener('btn-save-apar', 'click', Handlers.saveApAr);
     
-    // Clear Data Flow
-    addListener('clear-session-btn', 'click', () => UI.openModal('confirm-modal')); // Fixed ID
-    addListener('btn-confirm-clear', 'click', Handlers.clearData); // Fixed ID
+    // Clear Data
+    addListener('clear-session-btn', 'click', () => UI.openModal('confirm-modal'));
+    addListener('btn-confirm-clear', 'click', Handlers.clearData);
     
     // Categories & Export
-    addListener('btn-add-cat', 'click', Handlers.addCategory); // Fixed ID
-    addListener('btn-export', 'click', Handlers.exportToIIF); // Fixed ID
+    addListener('btn-add-cat', 'click', Handlers.addCategory);
+    addListener('btn-export', 'click', Handlers.exportToIIF);
 
     // --- Auth ---
     addListener('login-btn', 'click', () => signInWithPopup(auth, provider));
