@@ -9,85 +9,65 @@ document.addEventListener('DOMContentLoaded', () => {
     UI.init();
     Handlers.loadSession();
 
-    // Helper to safely add event listeners without crashing
+    // Helper to safely add event listeners
     const addListener = (id, event, handler) => {
         const el = document.getElementById(id);
-        if (el) {
-            el.addEventListener(event, handler);
-        } else {
-            console.warn(`Skipping missing element: ${id}`);
-        }
+        if (el) el.addEventListener(event, handler);
+        // Note: We silent fail here because some buttons use onclick="" in HTML now
     };
 
-    // File Inputs
+    // --- Inputs & Filters ---
     addListener('csv-file', 'change', (e) => Handlers.importCSV(e.target.files[0]));
-    addListener('invoice-csv-file', 'change', (e) => { /* Add Invoice Import Handler if needed */ });
+    
+    // Desktop Filters
+    addListener('year-filter', 'change', (e) => { State.filters.year = e.target.value; Handlers.refreshAll(); });
+    addListener('month-filter', 'change', (e) => { State.filters.month = e.target.value; Handlers.refreshAll(); });
+    
+    // Mobile Filters
+    addListener('mobile-year-filter', 'change', (e) => { State.filters.year = e.target.value; Handlers.refreshAll(); });
+    addListener('mobile-month-filter', 'change', (e) => { State.filters.month = e.target.value; Handlers.refreshAll(); });
 
-    // Filters
-    const setupFilter = (id, field) => { 
-        const el = document.getElementById(id); 
-        if(el) el.addEventListener('change', (e) => { 
-            State.filters[field] = e.target.value; 
-            Handlers.refreshAll(); 
-        }); 
-    };
-    setupFilter('year-filter', 'year'); 
-    setupFilter('month-filter', 'month'); 
-    setupFilter('mobile-year-filter', 'year'); 
-    setupFilter('mobile-month-filter', 'month');
-
-    // Search & Inputs
+    // Live Search
     addListener('tx-search', 'input', () => UI.renderTransactions());
-    addListener('ar-search', 'input', () => UI.renderAR()); // Add AR search handler logic if separate
-    addListener('ap-search', 'input', () => UI.renderAP()); // Add AP search handler logic if separate
+    
+    // Calculators
     addListener('tax-rate-input', 'input', () => UI.renderTaxes());
     addListener('recon-input', 'input', () => UI.updateReconCalc());
 
-    // Buttons (Fixed IDs to match your HTML)
+    // --- Action Buttons (IDs Fixed to match new HTML) ---
     addListener('save-session-btn', 'click', Handlers.saveSession);
-    addListener('add-rule-btn', 'click', Handlers.addRule); // Fixed ID
+    addListener('btn-add-rule', 'click', Handlers.addRule); // Fixed ID
     addListener('btn-save-tx', 'click', Handlers.saveTransactionEdit);
-    addListener('ap-ar-save-button', 'click', Handlers.saveApAr); // Fixed ID
-    addListener('clear-session-button', 'click', () => UI.openModal('confirm-modal')); // Fixed ID
-    addListener('confirm-delete-button', 'click', Handlers.clearData); // Fixed ID
-    addListener('add-new-category-btn', 'click', Handlers.addCategory); // Fixed ID
+    addListener('btn-save-apar', 'click', Handlers.saveApAr); // Fixed ID
     
-    // Feature Buttons
-    addListener('export-button', 'click', Handlers.exportToIIF);
-    addListener('start-reconcile-btn', 'click', () => UI.openModal('reconcile-modal'));
-    addListener('rules-button', 'click', () => UI.openModal('rules-modal'));
-    addListener('add-category-button', 'click', () => UI.openModal('category-modal'));
-    addListener('add-invoice-button', 'click', () => Handlers.openApArModal('ar'));
-    addListener('add-bill-button', 'click', () => Handlers.openApArModal('ap'));
+    // Clear Data Flow
+    addListener('clear-session-btn', 'click', () => UI.openModal('confirm-modal')); // Fixed ID
+    addListener('btn-confirm-clear', 'click', Handlers.clearData); // Fixed ID
+    
+    // Categories & Export
+    addListener('btn-add-cat', 'click', Handlers.addCategory); // Fixed ID
+    addListener('btn-export', 'click', Handlers.exportToIIF); // Fixed ID
 
-    // Auth
+    // --- Auth ---
     addListener('login-btn', 'click', () => signInWithPopup(auth, provider));
     addListener('logout-btn', 'click', () => signOut(auth));
 
     onAuthStateChanged(auth, (user) => {
         State.user = user;
-        if(user) {
-            const loginBtn = document.getElementById('login-btn');
-            const profile = document.getElementById('user-profile');
-            const name = document.getElementById('user-name');
-            const avatar = document.getElementById('user-avatar');
-            const userInfo = document.getElementById('user-info'); // Check which ID is used in HTML
+        const loginBtn = document.getElementById('login-btn');
+        const profile = document.getElementById('user-profile');
+        const name = document.getElementById('user-name');
+        const avatar = document.getElementById('user-avatar');
 
+        if(user) {
             if(loginBtn) loginBtn.classList.add('hidden');
             if(profile) profile.classList.remove('hidden');
-            if(userInfo) userInfo.classList.remove('hidden'); // Handle both versions
             if(name) name.textContent = user.displayName;
             if(avatar) avatar.src = user.photoURL;
-            
             Handlers.loadSession();
         } else {
-            const loginBtn = document.getElementById('login-btn');
-            const profile = document.getElementById('user-profile');
-            const userInfo = document.getElementById('user-info');
-
             if(loginBtn) loginBtn.classList.remove('hidden');
             if(profile) profile.classList.add('hidden');
-            if(userInfo) userInfo.classList.add('hidden');
         }
     });
 });
