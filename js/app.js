@@ -3,66 +3,46 @@ import { UI } from './ui.js';
 import { Handlers } from './handlers.js';
 import { auth, onAuthStateChanged, signInWithPopup, signOut, provider, doc, getDoc, db } from './firebase.js';
 
-// 1. Initialize UI
+// Expose App Global for HTML onclick="" events
+window.App = { ui: UI, handlers: Handlers };
+
 document.addEventListener('DOMContentLoaded', () => {
     UI.init();
+    Handlers.loadSession(); // Try local load first
+
+    // Core Listeners
+    document.getElementById('csv-file').addEventListener('change', (e) => Handlers.importCSV(e.target.files[0]));
+    document.getElementById('save-session-btn').addEventListener('click', Handlers.saveSession);
     
-    // Check Local Storage first
-    const localData = localStorage.getItem('bk_data');
-    if(localData) {
-        State.data = JSON.parse(localData);
-        UI.renderDashboard();
-    }
-});
+    // Filters
+    document.getElementById('year-filter').addEventListener('change', (e) => { State.filters.year = e.target.value; UI.updateDashboard(); UI.switchTab(State.currentView); });
+    document.getElementById('month-filter').addEventListener('change', (e) => { State.filters.month = e.target.value; UI.updateDashboard(); UI.switchTab(State.currentView); });
+    
+    // Auth
+    document.getElementById('login-btn').addEventListener('click', () => signInWithPopup(auth, provider));
+    document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
+    
+    // Transaction Actions
+    document.getElementById('btn-save-tx').addEventListener('click', Handlers.saveTransactionEdit);
+    document.getElementById('tx-search').addEventListener('input', () => UI.renderTransactions());
+    
+    // Feature Buttons
+    const exportBtn = document.getElementById('btn-export');
+    if(exportBtn) exportBtn.addEventListener('click', Handlers.exportToIIF);
 
-// 2. Event Listeners
-document.getElementById('import-btn').addEventListener('click', () => {
-    document.getElementById('csv-file').click();
-});
-
-document.getElementById('csv-file').addEventListener('change', (e) => {
-    if(e.target.files[0]) Handlers.handleImport(e.target.files[0]);
-});
-
-document.getElementById('save-btn').addEventListener('click', Handlers.saveSession);
-
-// Navigation Tabs
-document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => UI.switchTab(btn.dataset.tab));
-});
-
-// 3. Auth Listeners
-document.getElementById('login-btn').addEventListener('click', () => signInWithPopup(auth, provider));
-document.getElementById('logout-btn').addEventListener('click', () => signOut(auth));
-
-onAuthStateChanged(auth, async (user) => {
-    State.user = user;
-    if(user) {
-        // User is Signed In
-        document.getElementById('login-btn').classList.add('hidden');
-        document.getElementById('user-profile').classList.remove('hidden');
-        document.getElementById('user-name').textContent = user.displayName;
-        document.getElementById('user-avatar').src = user.photoURL;
-        
-        // Load Cloud Data
-        const snap = await getDoc(doc(db, 'users', user.uid));
-        if(snap.exists()) {
-            State.data = JSON.parse(snap.data().data || '[]');
-            UI.renderDashboard();
-            UI.renderTransactions();
-        }
-    } else {
-        // User is Signed Out (Guest Mode)
-        document.getElementById('login-btn').classList.remove('hidden');
-        document.getElementById('user-profile').classList.add('hidden');
-        
-        // Fallback to Local Storage instead of clearing everything
-        const localData = localStorage.getItem('bk_data');
-        if(localData) {
-            State.data = JSON.parse(localData);
+    // Auth State Logic
+    onAuthStateChanged(auth, (user) => {
+        State.user = user;
+        if(user) {
+            document.getElementById('login-btn').classList.add('hidden');
+            document.getElementById('user-profile').classList.remove('hidden');
+            document.getElementById('user-name').textContent = user.displayName;
+            document.getElementById('user-avatar').src = user.photoURL;
+            Handlers.loadSession(); // Load cloud data
         } else {
-            State.data = []; 
+            document.getElementById('login-btn').classList.remove('hidden');
+            document.getElementById('user-profile').classList.add('hidden');
+            // Guest mode: rely on what was loaded from local storage in init
         }
-        UI.renderDashboard();
-    }
+    });
 });
