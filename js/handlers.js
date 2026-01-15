@@ -4,15 +4,16 @@ import { Utils } from './utils.js';
 import { db, doc, setDoc, getDoc } from './firebase.js';
 
 export const Handlers = {
+    // --- IMPORT / EXPORT ---
     importCSV: (file) => {
         Papa.parse(file, {
             header: true, 
             skipEmptyLines: true,
             complete: (results) => {
                 const rawRows = results.data;
-                
-                // 1. Build Frequency Map of existing data (to detect duplicates)
                 const existingCounts = {};
+                
+                // Frequency Map to detect duplicates
                 State.data.forEach(tx => {
                     if(tx.type === 'transaction') {
                         const key = `${tx.date}-${tx.description.trim()}-${tx.amount}`;
@@ -20,36 +21,24 @@ export const Handlers = {
                     }
                 });
 
-                // Helper to parse a single CSV row
                 const parseRow = (row) => {
-                     // Try multiple common column names
                      const dateStr = row['Date'] || row['date'] || row['TransDate'];
                      const desc = (row['Description'] || row['Memo'] || row['description'] || 'No Desc').trim();
                      let amt = parseFloat(row['Amount'] || row['amount'] || row['Grand Total']);
                      
-                     // Handle Debit/Credit columns (common in some bank exports)
                      if(isNaN(amt)) {
                          const debit = parseFloat(row['Debit']);
                          const credit = parseFloat(row['Credit']);
                          if(!isNaN(debit) && debit !== 0) amt = -debit;
                          if(!isNaN(credit) && credit !== 0) amt = credit;
                      }
-                     
                      if(!dateStr || isNaN(amt)) return null;
 
-                     // Improved Date Parsing: Keeps local date (YYYY-MM-DD) without timezone shift
                      let cleanDate;
-                     try {
-                        const d = new Date(dateStr);
-                        // Use 'en-CA' because it outputs YYYY-MM-DD format consistently
-                        cleanDate = d.toLocaleDateString('en-CA'); 
-                     } catch(e) {
-                         return null; // Invalid date
-                     }
-                     
+                     try { cleanDate = new Date(dateStr).toLocaleDateString('en-CA'); } catch(e) { return null; }
                      if (cleanDate === 'Invalid Date') return null;
 
-                     // Auto-Categorize
+                     // Apply Rules
                      let category = 'Uncategorized';
                      for(const rule of State.rules) {
                          if(desc.toLowerCase().includes(rule.keyword.toLowerCase())) { 
@@ -70,14 +59,10 @@ export const Handlers = {
                      };
                 };
 
-                // 2. Try to filter out duplicates first
                 const newTxs = rawRows.map(row => {
                      const tx = parseRow(row);
                      if (!tx) return null;
-
                      const signature = `${tx.date}-${tx.description}-${tx.amount}`;
-
-                     // If we have seen this exact transaction before, skip it (decrement count)
                      if (existingCounts[signature] && existingCounts[signature] > 0) {
                          existingCounts[signature]--; 
                          return null; 
@@ -85,25 +70,22 @@ export const Handlers = {
                      return tx;
                 }).filter(Boolean);
                 
-                // 3. Logic: If valid new data, import. If not, Ask User.
                 if (newTxs.length > 0) {
                     State.data = [...State.data, ...newTxs];
                     Handlers.refreshAll();
                     UI.showToast(`Success! Imported ${newTxs.length} new transactions.`);
                     Handlers.saveSession();
                 } else {
-                    // This is the fix for your issue:
-                    if (confirm("System detected these might be duplicates. Force import anyway?")) {
-                         const forceTxs = rawRows.map(parseRow).filter(Boolean);
-                         if (forceTxs.length > 0) {
-                             State.data = [...State.data, ...forceTxs];
-                             Handlers.refreshAll();
-                             UI.showToast(`Forced import of ${forceTxs.length} transactions.`);
-                             Handlers.saveSession();
-                         } else {
-                             UI.showToast("Could not parse any rows from file.", "error");
-                         }
-                    }
+                     // Auto-Force Import if dupes detected but user likely wants them
+                     const forceTxs = rawRows.map(parseRow).filter(Boolean);
+                     if (forceTxs.length > 0) {
+                         State.data = [...State.data, ...forceTxs];
+                         Handlers.refreshAll();
+                         UI.showToast(`Imported ${forceTxs.length} transactions (Potential Duplicates Allowed).`);
+                         Handlers.saveSession();
+                     } else {
+                         UI.showToast("Could not parse any rows.", "error");
+                     }
                 }
             }
         });
@@ -162,24 +144,78 @@ export const Handlers = {
         if(State.currentView !== 'dashboard') UI.switchTab(State.currentView); 
     },
 
+    // --- RULES ---
+    addRule: () => {
+        const keyEl = document.getElementById('rule-keyword');
+        const catEl = document.getElementById('rule-category');
+        const key = keyEl.value.trim();
+        const cat = catEl.value;
+
+        if(key && cat) {
+            State.rules.push({ keyword: key, category: cat });
+            UI.renderRulesList();
+            keyEl.value = ''; // Clear input
+            Handlers.saveSession();
+            UI.showToast('Rule Added');
+        } else {
+            UI.showToast('Please enter text and select a category.', 'error');
+        }
+    },
+
+    deleteRule: (index) => {
+        State.rules.splice(index, 1);
+        UI.renderRulesList();
+        Handlers.saveSession();
+        UI.showToast('Rule Deleted');
+    },
+
+    // --- CATEGORIES ---
+    addCategory: () => {
+        const inputEl = document.getElementById('new-cat-name');
+        const name = inputEl.value.trim();
+        
+        if(name && !State.categories.includes(name)) {
+            State.categories.push(name);
+            State.categories.sort();
+            
+            // Refresh all UI elements that use categories
+            UI.populateRuleCategories();
+            UI.renderCategoryManagementList();
+            
+            inputEl.value = '';
+            Handlers.saveSession();
+            UI.showToast('Category Added');
+        } else if (State.categories.includes(name)) {
+            UI.showToast('Category already exists', 'error');
+        }
+    },
+
+    deleteCategory: (name) => {
+        if(name === 'Uncategorized') {
+            UI.showToast('Cannot delete default category', 'error');
+            return;
+        }
+        if(confirm(`Delete "${name}"? Transactions will revert to 'Uncategorized'.`)) {
+            State.categories = State.categories.filter(c => c !== name);
+            State.data.forEach(t => { if(t.category === name) t.category = 'Uncategorized'; });
+            
+            UI.populateRuleCategories();
+            UI.renderCategoryManagementList();
+            Handlers.refreshAll();
+            Handlers.saveSession();
+            UI.showToast('Category Deleted');
+        }
+    },
+
+    // --- EDITING ---
     editTransaction: (id) => {
         const tx = State.data.find(d => d.id === id);
         if(!tx) return;
-        
         document.getElementById('modal-tx-id').value = id;
         document.getElementById('modal-category').value = tx.category;
         document.getElementById('modal-job').value = tx.job || '';
         document.getElementById('modal-notes').value = tx.notes || '';
-        
-        const catList = document.getElementById('category-list');
-        if(catList) catList.innerHTML = State.categories.map(c => `<option value="${c}">`).join('');
-        
-        const jobList = document.getElementById('job-list');
-        if(jobList) {
-            const jobs = [...new Set(State.data.map(d => d.job).filter(Boolean))];
-            jobList.innerHTML = jobs.map(j => `<option value="${j}">`).join('');
-        }
-
+        UI.populateRuleCategories(); // Ensure dropdown is fresh
         UI.openModal('edit-modal');
     },
 
@@ -193,22 +229,36 @@ export const Handlers = {
             tx.job = document.getElementById('modal-job').value;
             tx.notes = document.getElementById('modal-notes').value;
             
-            if(newCat && !State.categories.includes(newCat)) State.categories.push(newCat);
+            // Auto-add new category if typed in manually
+            if(newCat && !State.categories.includes(newCat)) {
+                State.categories.push(newCat);
+                State.categories.sort();
+                UI.populateRuleCategories();
+            }
+
             UI.closeModal('edit-modal');
             
+            // Batch Update Logic
             if (oldCat !== newCat) {
                 const similar = State.data.filter(t => t.type === 'transaction' && t.id !== id && t.description.toLowerCase().includes(tx.description.split(' ')[0].toLowerCase()));
                 if(similar.length > 0) {
-                    document.getElementById('batch-msg').textContent = `Update ${similar.length} other transactions like "${tx.description.split(' ')[0]}..." to "${newCat}"?`;
-                    document.getElementById('btn-batch-yes').onclick = () => { similar.forEach(t => t.category = newCat); UI.closeModal('batch-modal'); Handlers.refreshAll(); Handlers.saveSession(); };
-                    document.getElementById('btn-batch-no').onclick = () => { UI.closeModal('batch-modal'); };
+                    const msgEl = document.getElementById('batch-msg');
+                    if(msgEl) msgEl.textContent = `Update ${similar.length} other transactions like "${tx.description.split(' ')[0]}..." to "${newCat}"?`;
+                    
+                    document.getElementById('btn-batch-yes').onclick = () => { 
+                        similar.forEach(t => t.category = newCat); 
+                        UI.closeModal('batch-modal'); 
+                        Handlers.refreshAll(); 
+                        Handlers.saveSession(); 
+                    };
+                    document.getElementById('btn-batch-no').onclick = () => UI.closeModal('batch-modal');
                     UI.openModal('batch-modal');
                 }
             }
 
             Handlers.refreshAll();
             Handlers.saveSession();
-            UI.showToast('Transaction Updated');
+            UI.showToast('Updated');
         }
     },
 
@@ -222,43 +272,7 @@ export const Handlers = {
         Handlers.saveSession();
     },
 
-    addRule: () => {
-        const key = document.getElementById('rule-keyword').value.trim();
-        const cat = document.getElementById('rule-category').value;
-        if(key && cat) {
-            State.rules.push({ keyword: key, category: cat });
-            UI.renderRulesList();
-            document.getElementById('rule-keyword').value = '';
-            Handlers.saveSession();
-            UI.showToast('Rule Added');
-        }
-    },
-
-    deleteRule: (index) => { State.rules.splice(index, 1); UI.renderRulesList(); Handlers.saveSession(); },
-
-    addCategory: () => {
-        const name = document.getElementById('new-cat-name').value.trim();
-        if(name && !State.categories.includes(name)) {
-            State.categories.push(name);
-            State.categories.sort();
-            UI.populateRuleCategories();
-            UI.renderCategoryManagementList();
-            document.getElementById('new-cat-name').value = '';
-            Handlers.saveSession();
-            UI.showToast('Category Added');
-        }
-    },
-
-    deleteCategory: (name) => {
-        if(name === 'Uncategorized') return;
-        State.categories = State.categories.filter(c => c !== name);
-        State.data.forEach(t => { if(t.category === name) t.category = 'Uncategorized'; });
-        UI.populateRuleCategories();
-        UI.renderCategoryManagementList();
-        Handlers.refreshAll();
-        Handlers.saveSession();
-    },
-
+    // --- AP/AR ---
     openApArModal: (type) => {
         document.getElementById('ap-ar-id').value = '';
         document.getElementById('ap-ar-type').value = type;
