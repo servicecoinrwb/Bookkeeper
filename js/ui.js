@@ -7,7 +7,7 @@ export const UI = {
 
     init() {
         lucide.createIcons();
-        this.renderFilters();
+        this.renderDateFilters(); // Fixed: Matches the method name defined below
         this.setupCharts();
         this.updateDashboard();
         this.populateRuleCategories();
