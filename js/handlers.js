@@ -4,16 +4,26 @@ import { Utils } from './utils.js';
 import { db, doc, setDoc, getDoc } from './firebase.js';
 
 export const Handlers = {
-    // --- IMPORT / EXPORT ---
     importCSV: (file) => {
         Papa.parse(file, {
             header: true, 
             skipEmptyLines: true,
             complete: (results) => {
                 const rawRows = results.data;
-                const existingCounts = {};
+                const headers = results.meta.fields || [];
+
+                // Smart Column Detection
+                // Try to find columns that loosely match common names if strict ones fail
+                const findCol = (patterns) => headers.find(h => patterns.some(p => h.toLowerCase().includes(p)));
                 
-                // Frequency Map to detect duplicates
+                const dateKey = findCol(['date', 'time']) || 'Date';
+                const descKey = findCol(['desc', 'memo', 'payee', 'name', 'merchant', 'details']) || 'Description';
+                const amtKey = findCol(['amount', 'total', 'net']) || 'Amount';
+                const debitKey = findCol(['debit', 'withdrawal', 'fee']);
+                const creditKey = findCol(['credit', 'deposit']);
+
+                // 1. Frequency Map
+                const existingCounts = {};
                 State.data.forEach(tx => {
                     if(tx.type === 'transaction') {
                         const key = `${tx.date}-${tx.description.trim()}-${tx.amount}`;
@@ -22,23 +32,33 @@ export const Handlers = {
                 });
 
                 const parseRow = (row) => {
-                     const dateStr = row['Date'] || row['date'] || row['TransDate'];
-                     const desc = (row['Description'] || row['Memo'] || row['description'] || 'No Desc').trim();
-                     let amt = parseFloat(row['Amount'] || row['amount'] || row['Grand Total']);
+                     // Get raw values
+                     const dateStr = row[dateKey];
+                     const desc = (row[descKey] || 'No Description').trim();
                      
-                     if(isNaN(amt)) {
-                         const debit = parseFloat(row['Debit']);
-                         const credit = parseFloat(row['Credit']);
-                         if(!isNaN(debit) && debit !== 0) amt = -debit;
-                         if(!isNaN(credit) && credit !== 0) amt = credit;
+                     // Robust Amount Parsing (handles "$1,200.50" strings)
+                     const cleanNum = (val) => parseFloat((val || "0").toString().replace(/[^0-9.-]/g, ''));
+
+                     let amt = cleanNum(row[amtKey]);
+                     
+                     // Logic for Debit/Credit columns if Amount is 0 or missing
+                     if (amt === 0 && (debitKey || creditKey)) {
+                         const debit = cleanNum(row[debitKey]);
+                         const credit = cleanNum(row[creditKey]);
+                         if (debit !== 0) amt = -Math.abs(debit);
+                         else if (credit !== 0) amt = Math.abs(credit);
                      }
-                     if(!dateStr || isNaN(amt)) return null;
+                     
+                     // Validate
+                     if(!dateStr || isNaN(amt) || amt === 0) return null;
 
                      let cleanDate;
-                     try { cleanDate = new Date(dateStr).toLocaleDateString('en-CA'); } catch(e) { return null; }
-                     if (cleanDate === 'Invalid Date') return null;
+                     try {
+                        const d = new Date(dateStr);
+                        if(isNaN(d.getTime())) throw new Error("Invalid");
+                        cleanDate = d.toLocaleDateString('en-CA'); 
+                     } catch(e) { return null; }
 
-                     // Apply Rules
                      let category = 'Uncategorized';
                      for(const rule of State.rules) {
                          if(desc.toLowerCase().includes(rule.keyword.toLowerCase())) { 
@@ -59,6 +79,7 @@ export const Handlers = {
                      };
                 };
 
+                // 2. Filter Duplicates
                 const newTxs = rawRows.map(row => {
                      const tx = parseRow(row);
                      if (!tx) return null;
@@ -70,21 +91,23 @@ export const Handlers = {
                      return tx;
                 }).filter(Boolean);
                 
+                // 3. Commit
                 if (newTxs.length > 0) {
                     State.data = [...State.data, ...newTxs];
                     Handlers.refreshAll();
                     UI.showToast(`Success! Imported ${newTxs.length} new transactions.`);
                     Handlers.saveSession();
                 } else {
-                     // Auto-Force Import if dupes detected but user likely wants them
+                     // Auto-Force Import if duplicate logic was too aggressive
                      const forceTxs = rawRows.map(parseRow).filter(Boolean);
                      if (forceTxs.length > 0) {
                          State.data = [...State.data, ...forceTxs];
                          Handlers.refreshAll();
-                         UI.showToast(`Imported ${forceTxs.length} transactions (Potential Duplicates Allowed).`);
+                         UI.showToast(`Imported ${forceTxs.length} transactions (Duplicate Check Override).`);
                          Handlers.saveSession();
                      } else {
-                         UI.showToast("Could not parse any rows.", "error");
+                         console.log("Failed Row Sample:", rawRows[0]);
+                         UI.showToast("Could not parse rows. Check console for details.", "error");
                      }
                 }
             }
@@ -144,78 +167,24 @@ export const Handlers = {
         if(State.currentView !== 'dashboard') UI.switchTab(State.currentView); 
     },
 
-    // --- RULES ---
-    addRule: () => {
-        const keyEl = document.getElementById('rule-keyword');
-        const catEl = document.getElementById('rule-category');
-        const key = keyEl.value.trim();
-        const cat = catEl.value;
-
-        if(key && cat) {
-            State.rules.push({ keyword: key, category: cat });
-            UI.renderRulesList();
-            keyEl.value = ''; // Clear input
-            Handlers.saveSession();
-            UI.showToast('Rule Added');
-        } else {
-            UI.showToast('Please enter text and select a category.', 'error');
-        }
-    },
-
-    deleteRule: (index) => {
-        State.rules.splice(index, 1);
-        UI.renderRulesList();
-        Handlers.saveSession();
-        UI.showToast('Rule Deleted');
-    },
-
-    // --- CATEGORIES ---
-    addCategory: () => {
-        const inputEl = document.getElementById('new-cat-name');
-        const name = inputEl.value.trim();
-        
-        if(name && !State.categories.includes(name)) {
-            State.categories.push(name);
-            State.categories.sort();
-            
-            // Refresh all UI elements that use categories
-            UI.populateRuleCategories();
-            UI.renderCategoryManagementList();
-            
-            inputEl.value = '';
-            Handlers.saveSession();
-            UI.showToast('Category Added');
-        } else if (State.categories.includes(name)) {
-            UI.showToast('Category already exists', 'error');
-        }
-    },
-
-    deleteCategory: (name) => {
-        if(name === 'Uncategorized') {
-            UI.showToast('Cannot delete default category', 'error');
-            return;
-        }
-        if(confirm(`Delete "${name}"? Transactions will revert to 'Uncategorized'.`)) {
-            State.categories = State.categories.filter(c => c !== name);
-            State.data.forEach(t => { if(t.category === name) t.category = 'Uncategorized'; });
-            
-            UI.populateRuleCategories();
-            UI.renderCategoryManagementList();
-            Handlers.refreshAll();
-            Handlers.saveSession();
-            UI.showToast('Category Deleted');
-        }
-    },
-
-    // --- EDITING ---
     editTransaction: (id) => {
         const tx = State.data.find(d => d.id === id);
         if(!tx) return;
+        
         document.getElementById('modal-tx-id').value = id;
         document.getElementById('modal-category').value = tx.category;
         document.getElementById('modal-job').value = tx.job || '';
         document.getElementById('modal-notes').value = tx.notes || '';
-        UI.populateRuleCategories(); // Ensure dropdown is fresh
+        
+        const catList = document.getElementById('category-list');
+        if(catList) catList.innerHTML = State.categories.map(c => `<option value="${c}">`).join('');
+        
+        const jobList = document.getElementById('job-list');
+        if(jobList) {
+            const jobs = [...new Set(State.data.map(d => d.job).filter(Boolean))];
+            jobList.innerHTML = jobs.map(j => `<option value="${j}">`).join('');
+        }
+
         UI.openModal('edit-modal');
     },
 
@@ -229,36 +198,23 @@ export const Handlers = {
             tx.job = document.getElementById('modal-job').value;
             tx.notes = document.getElementById('modal-notes').value;
             
-            // Auto-add new category if typed in manually
-            if(newCat && !State.categories.includes(newCat)) {
-                State.categories.push(newCat);
-                State.categories.sort();
-                UI.populateRuleCategories();
-            }
-
+            if(newCat && !State.categories.includes(newCat)) State.categories.push(newCat);
             UI.closeModal('edit-modal');
             
-            // Batch Update Logic
             if (oldCat !== newCat) {
                 const similar = State.data.filter(t => t.type === 'transaction' && t.id !== id && t.description.toLowerCase().includes(tx.description.split(' ')[0].toLowerCase()));
                 if(similar.length > 0) {
                     const msgEl = document.getElementById('batch-msg');
                     if(msgEl) msgEl.textContent = `Update ${similar.length} other transactions like "${tx.description.split(' ')[0]}..." to "${newCat}"?`;
-                    
-                    document.getElementById('btn-batch-yes').onclick = () => { 
-                        similar.forEach(t => t.category = newCat); 
-                        UI.closeModal('batch-modal'); 
-                        Handlers.refreshAll(); 
-                        Handlers.saveSession(); 
-                    };
-                    document.getElementById('btn-batch-no').onclick = () => UI.closeModal('batch-modal');
+                    document.getElementById('btn-batch-yes').onclick = () => { similar.forEach(t => t.category = newCat); UI.closeModal('batch-modal'); Handlers.refreshAll(); Handlers.saveSession(); };
+                    document.getElementById('btn-batch-no').onclick = () => { UI.closeModal('batch-modal'); };
                     UI.openModal('batch-modal');
                 }
             }
 
             Handlers.refreshAll();
             Handlers.saveSession();
-            UI.showToast('Updated');
+            UI.showToast('Transaction Updated');
         }
     },
 
@@ -272,7 +228,43 @@ export const Handlers = {
         Handlers.saveSession();
     },
 
-    // --- AP/AR ---
+    addRule: () => {
+        const key = document.getElementById('rule-keyword').value.trim();
+        const cat = document.getElementById('rule-category').value;
+        if(key && cat) {
+            State.rules.push({ keyword: key, category: cat });
+            UI.renderRulesList();
+            document.getElementById('rule-keyword').value = '';
+            Handlers.saveSession();
+            UI.showToast('Rule Added');
+        }
+    },
+
+    deleteRule: (index) => { State.rules.splice(index, 1); UI.renderRulesList(); Handlers.saveSession(); },
+
+    addCategory: () => {
+        const name = document.getElementById('new-cat-name').value.trim();
+        if(name && !State.categories.includes(name)) {
+            State.categories.push(name);
+            State.categories.sort();
+            UI.populateRuleCategories();
+            UI.renderCategoryManagementList();
+            document.getElementById('new-cat-name').value = '';
+            Handlers.saveSession();
+            UI.showToast('Category Added');
+        }
+    },
+
+    deleteCategory: (name) => {
+        if(name === 'Uncategorized') return;
+        State.categories = State.categories.filter(c => c !== name);
+        State.data.forEach(t => { if(t.category === name) t.category = 'Uncategorized'; });
+        UI.populateRuleCategories();
+        UI.renderCategoryManagementList();
+        Handlers.refreshAll();
+        Handlers.saveSession();
+    },
+
     openApArModal: (type) => {
         document.getElementById('ap-ar-id').value = '';
         document.getElementById('ap-ar-type').value = type;
