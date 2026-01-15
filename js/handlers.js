@@ -4,9 +4,8 @@ import { Utils } from './utils.js';
 import { db, doc, setDoc, getDoc } from './firebase.js';
 
 export const Handlers = {
-    // ... (Keep existing importCSV, saveSession, loadSession, refreshAll, editTransaction, saveTransactionEdit, toggleReconcile) ...
-    // Note: Copied previously provided methods for context, adding new ones below.
-    importCSV: (file) => { /* ... same as before ... */ Papa.parse(file, { header: true, skipEmptyLines: true, complete: (results) => { const newTxs = results.data.map(row => { const dateStr = row['Date'] || row['date'] || row['TransDate']; const desc = row['Description'] || row['Memo'] || row['description'] || 'No Desc'; let amt = parseFloat(row['Amount'] || row['amount'] || row['Grand Total']); if(isNaN(amt)) { const debit = parseFloat(row['Debit']); const credit = parseFloat(row['Credit']); if(!isNaN(debit)) amt = -debit; if(!isNaN(credit)) amt = credit; } if(!dateStr || isNaN(amt)) return null; let category = 'Uncategorized'; for(const rule of State.rules) { if(desc.toLowerCase().includes(rule.keyword.toLowerCase())) { category = rule.category; break; } } return { id: Utils.generateId('tx'), type: 'transaction', date: new Date(dateStr).toISOString().split('T')[0], description: desc, amount: amt, category: category, reconciled: false, job: '' }; }).filter(Boolean); State.data = [...State.data, ...newTxs]; Handlers.refreshAll(); UI.showToast(`Imported ${newTxs.length} transactions`); Handlers.saveSession(); } }); },
+    // ... (Keep importCSV, saveSession, loadSession, refreshAll, editTransaction, saveTransactionEdit as before) ...
+    importCSV: (file) => { Papa.parse(file, { header: true, skipEmptyLines: true, complete: (results) => { const newTxs = results.data.map(row => { const dateStr = row['Date'] || row['date'] || row['TransDate']; const desc = row['Description'] || row['Memo'] || row['description'] || 'No Desc'; let amt = parseFloat(row['Amount'] || row['amount'] || row['Grand Total']); if(isNaN(amt)) { const debit = parseFloat(row['Debit']); const credit = parseFloat(row['Credit']); if(!isNaN(debit)) amt = -debit; if(!isNaN(credit)) amt = credit; } if(!dateStr || isNaN(amt)) return null; let category = 'Uncategorized'; for(const rule of State.rules) { if(desc.toLowerCase().includes(rule.keyword.toLowerCase())) { category = rule.category; break; } } return { id: Utils.generateId('tx'), type: 'transaction', date: new Date(dateStr).toISOString().split('T')[0], description: desc, amount: amt, category: category, reconciled: false, job: '' }; }).filter(Boolean); State.data = [...State.data, ...newTxs]; Handlers.refreshAll(); UI.showToast(`Imported ${newTxs.length} transactions`); Handlers.saveSession(); } }); },
     saveSession: async () => { if (State.user) { try { document.getElementById('cloud-status').classList.remove('hidden'); await setDoc(doc(db, 'users', State.user.uid), { data: JSON.stringify(State.data), rules: JSON.stringify(State.rules), categories: JSON.stringify(State.categories), lastUpdated: new Date() }); document.getElementById('cloud-status').classList.add('hidden'); UI.showToast("Saved to Cloud"); } catch (e) { console.error(e); UI.showToast("Save Failed", "error"); } } else { localStorage.setItem('bk_data', JSON.stringify(State.data)); localStorage.setItem('bk_rules', JSON.stringify(State.rules)); localStorage.setItem('bk_cats', JSON.stringify(State.categories)); UI.showToast("Saved Locally"); } },
     loadSession: async () => { if(State.user) { const snap = await getDoc(doc(db, 'users', State.user.uid)); if(snap.exists()) { const d = snap.data(); State.data = JSON.parse(d.data || '[]'); if(d.rules) State.rules = JSON.parse(d.rules); if(d.categories) State.categories = JSON.parse(d.categories); } } else { const local = localStorage.getItem('bk_data'); const rules = localStorage.getItem('bk_rules'); const cats = localStorage.getItem('bk_cats'); if(local) State.data = JSON.parse(local); if(rules) State.rules = JSON.parse(rules); if(cats) State.categories = JSON.parse(cats); } Handlers.refreshAll(); UI.populateRuleCategories(); UI.renderRulesList(); UI.renderCategoryManagementList(); },
     refreshAll: () => { UI.renderDateFilters(); UI.updateDashboard(); if(State.currentView !== 'dashboard') UI.switchTab(State.currentView); },
@@ -16,18 +15,18 @@ export const Handlers = {
     
     // --- NEW: Toggle All Reconcile ---
     toggleAllRec: (checked) => {
-        // Only toggle VISIBLE transactions (respecting filters/search)
-        const visibleTxs = UI.getFilteredData().filter(d => {
-            const search = document.getElementById('tx-search').value.toLowerCase();
-            return d.type === 'transaction' && (!search || d.description.toLowerCase().includes(search) || d.category.toLowerCase().includes(search));
-        });
+        // Only toggle VISIBLE transactions
+        const search = document.getElementById('tx-search').value.toLowerCase();
+        const visibleTxs = UI.getFilteredData().filter(d => d.type === 'transaction' && (!search || d.description.toLowerCase().includes(search) || d.category.toLowerCase().includes(search)));
         
         visibleTxs.forEach(tx => tx.reconciled = checked);
-        UI.renderTransactions(); // Re-render to show checks
+        
+        // Re-render UI to reflect changes
+        UI.renderTransactions();
         Handlers.saveSession();
     },
 
-    // ... (Keep addRule, deleteRule, openApArModal, saveApAr, toggleApArStatus, clearData, exportToIIF, addCategory, deleteCategory) ...
+    // ... (Keep existing rules, ap/ar, etc) ...
     addRule: () => { const key = document.getElementById('rule-keyword').value.trim(); const cat = document.getElementById('rule-category').value; if(key && cat) { State.rules.push({ keyword: key, category: cat }); UI.renderRulesList(); document.getElementById('rule-keyword').value = ''; Handlers.saveSession(); UI.showToast('Rule Added'); } },
     deleteRule: (index) => { State.rules.splice(index, 1); UI.renderRulesList(); Handlers.saveSession(); },
     addCategory: () => { const name = document.getElementById('new-cat-name').value.trim(); if(name && !State.categories.includes(name)) { State.categories.push(name); State.categories.sort(); UI.populateRuleCategories(); UI.renderCategoryManagementList(); document.getElementById('new-cat-name').value = ''; Handlers.saveSession(); UI.showToast('Category Added'); } },
