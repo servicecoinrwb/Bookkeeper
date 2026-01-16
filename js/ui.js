@@ -3,7 +3,19 @@ import { Utils } from './utils.js';
 import { Handlers } from './handlers.js';
 
 export const UI = {
-    charts: {},
+    // ... (init, showToast, openModal, closeModal, switchTab) ...
+
+    populateRuleCategories() {
+        const opts = State.categories.map(c => `<option value="${c}">${c}</option>`).join('');
+        
+        // 1. Rules Page Dropdown
+        const ruleSelect = document.getElementById('rule-category');
+        if(ruleSelect) ruleSelect.innerHTML = opts;
+        
+        // 2. Edit Modal Dropdown (The key fix)
+        const modalSelect = document.getElementById('modal-category');
+        if(modalSelect) modalSelect.innerHTML = opts;
+    },
 
     init() {
         lucide.createIcons();
