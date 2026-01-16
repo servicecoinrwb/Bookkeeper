@@ -6,19 +6,18 @@ export const State = {
     rules: [
         { keyword: 'Speedway', category: 'Vehicle Expenses (Fuel, Repairs)' },
         { keyword: 'Home Depot', category: 'COGS - Parts & Materials' },
-        { keyword: 'Trane', category: 'COGS - Equipment' },
-        { keyword: 'Carrier', category: 'COGS - Equipment' }
+        { keyword: 'Trane', category: 'COGS - Equipment' }
     ],
     currentView: 'dashboard',
     
-    // Filters default to current month
+    // Filters default to current month/year
     filters: { 
         year: today.getFullYear().toString(), 
         month: (today.getMonth() + 1).toString(), 
         search: '' 
     },
     
-    // Robust Default HVAC Categories
+    // Hardcoded HVAC Categories so dropdowns are never empty
     categories: [
         'COGS - Equipment',
         'COGS - Parts & Materials',
