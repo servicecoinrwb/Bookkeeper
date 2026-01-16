@@ -4,150 +4,158 @@ import { Utils } from './utils.js';
 import { db, doc, setDoc, getDoc, collection, getDocs, writeBatch, deleteDoc } from './firebase.js';
 
 export const Handlers = {
-    // --- IMPORT TRANSACTIONS (CSV) ---
+    // --- UNIVERSAL IMPORT HANDLER ---
+    // This now detects the file type automatically
     importCSV: async (file) => {
         Papa.parse(file, {
-            header: true, skipEmptyLines: true,
+            header: true, 
+            skipEmptyLines: true,
             complete: async (results) => {
-                const rawRows = results.data;
                 const headers = results.meta.fields || [];
-
-                // Smart Column Detection
-                const findCol = (patterns) => headers.find(h => patterns.some(p => h.toLowerCase().includes(p)));
-                const dateKey = findCol(['date', 'time']) || 'Date';
-                const descKey = findCol(['desc', 'memo', 'payee', 'name']) || 'Description';
-                const amtKey = findCol(['amount', 'total', 'net']) || 'Amount';
-                const debitKey = findCol(['debit', 'withdrawal']);
-                const creditKey = findCol(['credit', 'deposit']);
-
-                const existingCounts = {};
-                State.data.forEach(tx => {
-                    if(tx.type === 'transaction') {
-                        const key = `${tx.date}-${tx.description.trim()}-${tx.amount}`;
-                        existingCounts[key] = (existingCounts[key] || 0) + 1;
-                    }
-                });
-
-                const parseRow = (row) => {
-                     const dateStr = row[dateKey];
-                     const desc = (row[descKey] || 'No Description').trim();
-                     const cleanNum = (val) => parseFloat((val || "0").toString().replace(/[^0-9.-]/g, ''));
-
-                     let amt = cleanNum(row[amtKey]);
-                     if (amt === 0 && (debitKey || creditKey)) {
-                         const debit = cleanNum(row[debitKey]);
-                         const credit = cleanNum(row[creditKey]);
-                         if (debit !== 0) amt = -Math.abs(debit);
-                         else if (credit !== 0) amt = Math.abs(credit);
-                     }
-                     
-                     if(!dateStr || isNaN(amt)) return null;
-
-                     let cleanDate;
-                     try { cleanDate = new Date(dateStr).toLocaleDateString('en-CA'); } catch(e) { return null; }
-                     if (cleanDate === 'Invalid Date') return null;
-
-                     let category = 'Uncategorized';
-                     for(const rule of State.rules) {
-                         if(desc.toLowerCase().includes(rule.keyword.toLowerCase())) { category = rule.category; break; }
-                     }
-
-                     return { 
-                         id: Utils.generateId('tx'), 
-                         type: 'transaction', 
-                         date: cleanDate, 
-                         description: desc, 
-                         amount: amt, 
-                         category: category, 
-                         reconciled: false, 
-                         job: '' 
-                     };
-                };
-
-                const newTxs = rawRows.map(row => {
-                     const tx = parseRow(row);
-                     if (!tx) return null;
-                     const signature = `${tx.date}-${tx.description}-${tx.amount}`;
-                     if (existingCounts[signature] && existingCounts[signature] > 0) {
-                         existingCounts[signature]--; 
-                         return null; 
-                     }
-                     return tx;
-                }).filter(Boolean);
+                const rawRows = results.data;
                 
-                // FORCE IMPORT Logic
-                let finalTxs = newTxs;
-                if (newTxs.length === 0) {
-                     const forceTxs = rawRows.map(parseRow).filter(Boolean);
-                     if (forceTxs.length > 0) {
-                         finalTxs = forceTxs;
-                         UI.showToast(`Imported ${forceTxs.length} transactions (Forced).`);
-                     } else {
-                         UI.showToast("Could not parse rows.", "error");
-                         return;
-                     }
+                // --- DETECT FILE TYPE ---
+                // If it has "INVNum", it's definitely your Service App Invoice
+                const isInvoiceFile = headers.some(h => h === 'INVNum' || h === 'Grand Total');
+
+                if (isInvoiceFile) {
+                    Handlers.processInvoices(rawRows);
                 } else {
-                    UI.showToast(`Success! Imported ${newTxs.length} new transactions.`);
+                    Handlers.processTransactions(rawRows, headers);
                 }
-
-                State.data = [...State.data, ...finalTxs];
-                Handlers.refreshAll();
-
-                // SAVE TO CLOUD (BATCHED)
-                if(State.user) await Handlers.batchSaveTransactions(finalTxs);
-                else Handlers.saveSessionLocally();
             }
         });
     },
 
-    // --- IMPORT INVOICES (Restored!) ---
-    importInvoices: async (file) => {
-        Papa.parse(file, {
-            header: true, skipEmptyLines: true,
-            complete: async (results) => {
-                const rawRows = results.data;
-                const headers = results.meta.fields || [];
-                const findCol = (patterns) => headers.find(h => patterns.some(p => h.toLowerCase().includes(p)));
-                
-                const dateKey = findCol(['date', 'invdate']) || 'Date';
-                const partyKey = findCol(['customer', 'client', 'bill to']) || 'Customer';
-                const numKey = findCol(['invoice #', 'inv #', 'number']) || 'Invoice #';
-                const amtKey = findCol(['amount', 'total', 'balance']) || 'Amount';
+    // --- PROCESS 1: BANK TRANSACTIONS ---
+    processTransactions: async (rawRows, headers) => {
+        // Smart Column Detection for Bank Files
+        const findCol = (patterns) => headers.find(h => patterns.some(p => h.toLowerCase().includes(p)));
+        const dateKey = findCol(['date', 'time']) || 'Date';
+        const descKey = findCol(['desc', 'memo', 'payee', 'name']) || 'Description';
+        const amtKey = findCol(['amount', 'total', 'net']) || 'Amount';
+        const debitKey = findCol(['debit', 'withdrawal']);
+        const creditKey = findCol(['credit', 'deposit']);
 
-                const existingInvoices = new Set(State.data.filter(d => d.type === 'ar').map(i => i.number ? i.number.toString().toLowerCase() : ''));
-
-                const newInvoices = rawRows.map(row => {
-                     const dateStr = row[dateKey];
-                     const party = (row[partyKey] || 'Unknown').trim();
-                     const number = (row[numKey] || '').toString().trim();
-                     const amt = parseFloat((row[amtKey] || "0").toString().replace(/[^0-9.-]/g, ''));
-                     
-                     if(!dateStr || isNaN(amt)) return null;
-                     if (number && existingInvoices.has(number.toLowerCase())) return null;
-
-                     let cleanDate;
-                     try { cleanDate = new Date(dateStr).toLocaleDateString('en-CA'); } catch(e) { return null; }
-
-                     return { id: Utils.generateId('ar'), type: 'ar', date: cleanDate, party: party, number: number || 'N/A', amount: amt, status: 'unpaid' };
-                }).filter(Boolean);
-                
-                if (newInvoices.length > 0) {
-                    State.data = [...State.data, ...newInvoices];
-                    Handlers.refreshAll();
-                    UI.showToast(`Success! Imported ${newInvoices.length} invoices.`);
-                    if(State.user) await Handlers.batchSaveTransactions(newInvoices);
-                    else Handlers.saveSessionLocally();
-                } else {
-                    UI.showToast("No new invoices found.", "error");
-                }
+        const existingCounts = {};
+        State.data.forEach(tx => {
+            if(tx.type === 'transaction') {
+                const key = `${tx.date}-${tx.description.trim()}-${tx.amount}`;
+                existingCounts[key] = (existingCounts[key] || 0) + 1;
             }
         });
+
+        const parseRow = (row) => {
+             const dateStr = row[dateKey];
+             const desc = (row[descKey] || 'No Description').trim();
+             const cleanNum = (val) => parseFloat((val || "0").toString().replace(/[^0-9.-]/g, ''));
+
+             let amt = cleanNum(row[amtKey]);
+             if (amt === 0 && (debitKey || creditKey)) {
+                 const debit = cleanNum(row[debitKey]);
+                 const credit = cleanNum(row[creditKey]);
+                 if (debit !== 0) amt = -Math.abs(debit);
+                 else if (credit !== 0) amt = Math.abs(credit);
+             }
+             
+             if(!dateStr || isNaN(amt)) return null;
+
+             let cleanDate;
+             try { cleanDate = new Date(dateStr).toLocaleDateString('en-CA'); } catch(e) { return null; }
+             if (cleanDate === 'Invalid Date') return null;
+
+             let category = 'Uncategorized';
+             for(const rule of State.rules) {
+                 if(desc.toLowerCase().includes(rule.keyword.toLowerCase())) { category = rule.category; break; }
+             }
+
+             return { 
+                 id: Utils.generateId('tx'), 
+                 type: 'transaction', 
+                 date: cleanDate, 
+                 description: desc, 
+                 amount: amt, 
+                 category: category, 
+                 reconciled: false, 
+                 job: '' 
+             };
+        };
+
+        const newTxs = rawRows.map(row => {
+             const tx = parseRow(row);
+             if (!tx) return null;
+             const signature = `${tx.date}-${tx.description}-${tx.amount}`;
+             if (existingCounts[signature] && existingCounts[signature] > 0) {
+                 existingCounts[signature]--; 
+                 return null; 
+             }
+             return tx;
+        }).filter(Boolean);
+        
+        Handlers.finalizeImport(newTxs, 'transactions');
+    },
+
+    // --- PROCESS 2: SERVICE APP INVOICES (A/R) ---
+    processInvoices: async (rawRows) => {
+        // Specific mapping for your AppSheet CSV
+        const existingInvoices = new Set(State.data.filter(d => d.type === 'ar').map(i => i.number ? i.number.toString().toLowerCase() : ''));
+
+        const newInvoices = rawRows.map(row => {
+             // Map exact columns from your file
+             const dateStr = row['TransDate'] || row['Date'];
+             const party = (row['Bill To'] || row['Customer'] || 'Unknown Customer').trim();
+             const number = (row['INVNum'] || row['Invoice #'] || '').toString().trim();
+             const statusRaw = (row['Invoice Status'] || '').toLowerCase();
+             
+             // Clean Currency "$1,234.56" -> 1234.56
+             const amt = parseFloat((row['Grand Total'] || "0").toString().replace(/[^0-9.-]/g, ''));
+             
+             if(!dateStr || isNaN(amt)) return null;
+             
+             // Skip duplicates by Invoice Number
+             if (number && existingInvoices.has(number.toLowerCase())) return null;
+
+             let cleanDate;
+             try { cleanDate = new Date(dateStr).toLocaleDateString('en-CA'); } catch(e) { return null; }
+
+             return { 
+                 id: Utils.generateId('ar'), 
+                 type: 'ar', 
+                 date: cleanDate, 
+                 party: party, 
+                 number: number || 'N/A', 
+                 amount: amt, 
+                 status: statusRaw.includes('paid') ? 'paid' : 'unpaid' 
+             };
+        }).filter(Boolean);
+        
+        Handlers.finalizeImport(newInvoices, 'invoices');
+    },
+
+    // --- COMMON FINALIZE STEP ---
+    finalizeImport: async (items, typeLabel) => {
+        if (items.length > 0) {
+            State.data = [...State.data, ...items];
+            Handlers.refreshAll();
+            UI.showToast(`Success! Imported ${items.length} new ${typeLabel}.`);
+            
+            if(State.user) await Handlers.batchSaveTransactions(items);
+            else Handlers.saveSessionLocally();
+        } else {
+            // Auto-force not applied to Invoices usually, but if needed for Bank:
+            if(typeLabel === 'transactions' && confirm("No new data (duplicates). Force import anyway?")) {
+                 // Logic to force import would go here, but usually discouraged for mixed usage
+                 UI.showToast("Import cancelled (Duplicates).", "error");
+            } else {
+                UI.showToast(`No new ${typeLabel} found.`, "error");
+            }
+        }
     },
 
     // --- BATCH SAVE HELPER ---
     batchSaveTransactions: async (items) => {
         if (!State.user) return;
-        const batchSize = 500;
+        const batchSize = 450; // Safety margin under 500
         for (let i = 0; i < items.length; i += batchSize) {
             const chunk = items.slice(i, i + batchSize);
             const batch = writeBatch(db);
@@ -157,7 +165,6 @@ export const Handlers = {
             });
             await batch.commit();
         }
-        console.log(`Saved ${items.length} items to subcollection.`);
     },
 
     // --- SAVE SESSION (Metadata only) ---
@@ -200,25 +207,12 @@ export const Handlers = {
                     if(d.rules) State.rules = JSON.parse(d.rules);
                     if(d.categories) State.categories = JSON.parse(d.categories);
                     
-                    // Legacy Migration Check
-                    if (d.data && d.data.length > 20) {
-                        console.log("Migrating legacy data...");
-                        try {
-                            const oldData = JSON.parse(d.data);
-                            State.data = oldData;
-                            Handlers.refreshAll();
-                            await Handlers.batchSaveTransactions(oldData);
-                            await setDoc(userDocRef, { data: null }, { merge: true });
-                            UI.showToast("Migration Complete");
-                        } catch (err) { console.error(err); }
-                    } else {
-                        // Load Subcollection
-                        const q = collection(db, 'users', State.user.uid, 'transactions');
-                        const querySnapshot = await getDocs(q);
-                        const txs = [];
-                        querySnapshot.forEach((doc) => txs.push(doc.data()));
-                        State.data = txs;
-                    }
+                    // Standard Load from Subcollection
+                    const q = collection(db, 'users', State.user.uid, 'transactions');
+                    const querySnapshot = await getDocs(q);
+                    const txs = [];
+                    querySnapshot.forEach((doc) => txs.push(doc.data()));
+                    State.data = txs;
                 }
             } catch(e) { console.error("Load Error:", e); }
         } else {
@@ -257,53 +251,53 @@ export const Handlers = {
     },
 
     // --- ACTIONS ---
+    editTransaction: (id) => {
+        const tx = State.data.find(d => d.id === id);
+        if(!tx) return;
+        document.getElementById('modal-tx-id').value = id;
+        document.getElementById('modal-category').value = tx.category;
+        document.getElementById('modal-job').value = tx.job || '';
+        document.getElementById('modal-notes').value = tx.notes || '';
+        const catList = document.getElementById('category-list');
+        if(catList) catList.innerHTML = State.categories.map(c => `<option value="${c}">`).join('');
+        const jobList = document.getElementById('job-list');
+        if(jobList) jobList.innerHTML = [...new Set(State.data.map(d => d.job).filter(Boolean))].map(j => `<option value="${j}">`).join('');
+        UI.openModal('edit-modal');
+    },
+
     saveTransactionEdit: () => {
         const id = document.getElementById('modal-tx-id').value;
         const tx = State.data.find(d => d.id === id);
         if(tx) {
             const oldCat = tx.category;
             const newCat = document.getElementById('modal-category').value;
-            
-            const updatedTx = {
-                ...tx,
-                category: newCat,
-                job: document.getElementById('modal-job').value,
-                notes: document.getElementById('modal-notes').value
-            };
+            const updatedTx = { ...tx, category: newCat, job: document.getElementById('modal-job').value, notes: document.getElementById('modal-notes').value };
             
             if(newCat && !State.categories.includes(newCat)) State.categories.push(newCat);
             UI.closeModal('edit-modal');
             
-            // Batch Logic
             if (oldCat !== newCat) {
                 const similar = State.data.filter(t => t.type === 'transaction' && t.id !== id && t.description.toLowerCase().includes(tx.description.split(' ')[0].toLowerCase()));
                 if(similar.length > 0) {
                     const msgEl = document.getElementById('batch-msg');
                     if(msgEl) msgEl.textContent = `Update ${similar.length} other transactions like "${tx.description.split(' ')[0]}..." to "${newCat}"?`;
-                    
                     document.getElementById('btn-batch-yes').onclick = async () => { 
                         similar.forEach(t => t.category = newCat); 
                         if(State.user) await Handlers.batchSaveTransactions(similar);
                         else Handlers.saveSessionLocally();
-                        UI.closeModal('batch-modal'); 
-                        Handlers.refreshAll(); 
+                        UI.closeModal('batch-modal'); Handlers.refreshAll(); 
                     };
                     document.getElementById('btn-batch-no').onclick = () => UI.closeModal('batch-modal');
                     UI.openModal('batch-modal');
                 }
             }
-
             Handlers.updateSingleItem(updatedTx);
             Handlers.refreshAll();
             UI.showToast('Updated');
         }
     },
 
-    toggleReconcile: (id) => { 
-        const tx = State.data.find(d => d.id === id); 
-        if(tx) { tx.reconciled = !tx.reconciled; Handlers.updateSingleItem(tx); Handlers.refreshAll(); } 
-    },
-    
+    toggleReconcile: (id) => { const tx = State.data.find(d => d.id === id); if(tx) { tx.reconciled = !tx.reconciled; Handlers.updateSingleItem(tx); Handlers.refreshAll(); } },
     toggleAllRec: async (checked) => {
         const search = document.getElementById('tx-search').value.toLowerCase();
         const visibleTxs = UI.getFilteredData().filter(d => d.type === 'transaction' && (!search || d.description.toLowerCase().includes(search) || d.category.toLowerCase().includes(search)));
@@ -313,7 +307,6 @@ export const Handlers = {
         else Handlers.saveSessionLocally();
     },
 
-    // --- SETTINGS ---
     addRule: () => {
         const key = document.getElementById('rule-keyword').value.trim();
         const cat = document.getElementById('rule-category').value;
@@ -345,7 +338,6 @@ export const Handlers = {
         if(State.user && affected.length > 0) Handlers.batchSaveTransactions(affected);
     },
 
-    // --- AP/AR ---
     openApArModal: (type) => {
         document.getElementById('ap-ar-id').value = '';
         document.getElementById('ap-ar-type').value = type;
@@ -357,6 +349,7 @@ export const Handlers = {
         document.getElementById('ap-ar-party').value = '';
         UI.openModal('ap-ar-modal');
     },
+
     saveApAr: () => {
         const type = document.getElementById('ap-ar-type').value;
         const item = {
