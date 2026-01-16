@@ -4,25 +4,12 @@ import { Utils } from './utils.js';
 import { db, doc, setDoc, getDoc } from './firebase.js';
 
 export const Handlers = {
+    // --- IMPORT ---
     importCSV: (file) => {
         Papa.parse(file, {
-            header: true, 
-            skipEmptyLines: true,
+            header: true, skipEmptyLines: true,
             complete: (results) => {
                 const rawRows = results.data;
-                const headers = results.meta.fields || [];
-
-                // Smart Column Detection
-                // Try to find columns that loosely match common names if strict ones fail
-                const findCol = (patterns) => headers.find(h => patterns.some(p => h.toLowerCase().includes(p)));
-                
-                const dateKey = findCol(['date', 'time']) || 'Date';
-                const descKey = findCol(['desc', 'memo', 'payee', 'name', 'merchant', 'details']) || 'Description';
-                const amtKey = findCol(['amount', 'total', 'net']) || 'Amount';
-                const debitKey = findCol(['debit', 'withdrawal', 'fee']);
-                const creditKey = findCol(['credit', 'deposit']);
-
-                // 1. Frequency Map
                 const existingCounts = {};
                 State.data.forEach(tx => {
                     if(tx.type === 'transaction') {
@@ -32,54 +19,31 @@ export const Handlers = {
                 });
 
                 const parseRow = (row) => {
-                     // Get raw values
-                     const dateStr = row[dateKey];
-                     const desc = (row[descKey] || 'No Description').trim();
+                     const dateStr = row['Date'] || row['date'] || row['TransDate'];
+                     const desc = (row['Description'] || row['Memo'] || row['description'] || 'No Desc').trim();
+                     let amt = parseFloat(row['Amount'] || row['amount'] || row['Grand Total']);
                      
-                     // Robust Amount Parsing (handles "$1,200.50" strings)
-                     const cleanNum = (val) => parseFloat((val || "0").toString().replace(/[^0-9.-]/g, ''));
-
-                     let amt = cleanNum(row[amtKey]);
-                     
-                     // Logic for Debit/Credit columns if Amount is 0 or missing
-                     if (amt === 0 && (debitKey || creditKey)) {
-                         const debit = cleanNum(row[debitKey]);
-                         const credit = cleanNum(row[creditKey]);
-                         if (debit !== 0) amt = -Math.abs(debit);
-                         else if (credit !== 0) amt = Math.abs(credit);
+                     if(isNaN(amt)) {
+                         const debit = parseFloat(row['Debit']);
+                         const credit = parseFloat(row['Credit']);
+                         if(!isNaN(debit) && debit !== 0) amt = -debit;
+                         if(!isNaN(credit) && credit !== 0) amt = credit;
                      }
                      
-                     // Validate
-                     if(!dateStr || isNaN(amt) || amt === 0) return null;
+                     if(!dateStr || isNaN(amt)) return null;
 
                      let cleanDate;
-                     try {
-                        const d = new Date(dateStr);
-                        if(isNaN(d.getTime())) throw new Error("Invalid");
-                        cleanDate = d.toLocaleDateString('en-CA'); 
-                     } catch(e) { return null; }
+                     try { cleanDate = new Date(dateStr).toLocaleDateString('en-CA'); } catch(e) { return null; }
+                     if (cleanDate === 'Invalid Date') return null;
 
                      let category = 'Uncategorized';
                      for(const rule of State.rules) {
-                         if(desc.toLowerCase().includes(rule.keyword.toLowerCase())) { 
-                             category = rule.category; 
-                             break; 
-                         }
+                         if(desc.toLowerCase().includes(rule.keyword.toLowerCase())) { category = rule.category; break; }
                      }
 
-                     return { 
-                         id: Utils.generateId('tx'), 
-                         type: 'transaction', 
-                         date: cleanDate, 
-                         description: desc, 
-                         amount: amt, 
-                         category: category, 
-                         reconciled: false, 
-                         job: '' 
-                     };
+                     return { id: Utils.generateId('tx'), type: 'transaction', date: cleanDate, description: desc, amount: amt, category: category, reconciled: false, job: '' };
                 };
 
-                // 2. Filter Duplicates
                 const newTxs = rawRows.map(row => {
                      const tx = parseRow(row);
                      if (!tx) return null;
@@ -91,23 +55,20 @@ export const Handlers = {
                      return tx;
                 }).filter(Boolean);
                 
-                // 3. Commit
                 if (newTxs.length > 0) {
                     State.data = [...State.data, ...newTxs];
                     Handlers.refreshAll();
                     UI.showToast(`Success! Imported ${newTxs.length} new transactions.`);
                     Handlers.saveSession();
                 } else {
-                     // Auto-Force Import if duplicate logic was too aggressive
                      const forceTxs = rawRows.map(parseRow).filter(Boolean);
                      if (forceTxs.length > 0) {
                          State.data = [...State.data, ...forceTxs];
                          Handlers.refreshAll();
-                         UI.showToast(`Imported ${forceTxs.length} transactions (Duplicate Check Override).`);
+                         UI.showToast(`Imported ${forceTxs.length} transactions (Forced).`);
                          Handlers.saveSession();
                      } else {
-                         console.log("Failed Row Sample:", rawRows[0]);
-                         UI.showToast("Could not parse rows. Check console for details.", "error");
+                         UI.showToast("Could not parse any rows.", "error");
                      }
                 }
             }
@@ -161,30 +122,20 @@ export const Handlers = {
         UI.renderCategoryManagementList();
     },
 
-    refreshAll: () => { 
-        UI.renderDateFilters(); 
-        UI.updateDashboard(); 
-        if(State.currentView !== 'dashboard') UI.switchTab(State.currentView); 
-    },
+    refreshAll: () => { UI.renderDateFilters(); UI.updateDashboard(); if(State.currentView !== 'dashboard') UI.switchTab(State.currentView); },
 
+    // --- TRANSACTIONS ---
     editTransaction: (id) => {
         const tx = State.data.find(d => d.id === id);
         if(!tx) return;
-        
         document.getElementById('modal-tx-id').value = id;
         document.getElementById('modal-category').value = tx.category;
         document.getElementById('modal-job').value = tx.job || '';
         document.getElementById('modal-notes').value = tx.notes || '';
-        
         const catList = document.getElementById('category-list');
         if(catList) catList.innerHTML = State.categories.map(c => `<option value="${c}">`).join('');
-        
         const jobList = document.getElementById('job-list');
-        if(jobList) {
-            const jobs = [...new Set(State.data.map(d => d.job).filter(Boolean))];
-            jobList.innerHTML = jobs.map(j => `<option value="${j}">`).join('');
-        }
-
+        if(jobList) jobList.innerHTML = [...new Set(State.data.map(d => d.job).filter(Boolean))].map(j => `<option value="${j}">`).join('');
         UI.openModal('edit-modal');
     },
 
@@ -197,29 +148,25 @@ export const Handlers = {
             tx.category = newCat;
             tx.job = document.getElementById('modal-job').value;
             tx.notes = document.getElementById('modal-notes').value;
-            
             if(newCat && !State.categories.includes(newCat)) State.categories.push(newCat);
             UI.closeModal('edit-modal');
-            
             if (oldCat !== newCat) {
                 const similar = State.data.filter(t => t.type === 'transaction' && t.id !== id && t.description.toLowerCase().includes(tx.description.split(' ')[0].toLowerCase()));
                 if(similar.length > 0) {
                     const msgEl = document.getElementById('batch-msg');
                     if(msgEl) msgEl.textContent = `Update ${similar.length} other transactions like "${tx.description.split(' ')[0]}..." to "${newCat}"?`;
                     document.getElementById('btn-batch-yes').onclick = () => { similar.forEach(t => t.category = newCat); UI.closeModal('batch-modal'); Handlers.refreshAll(); Handlers.saveSession(); };
-                    document.getElementById('btn-batch-no').onclick = () => { UI.closeModal('batch-modal'); };
+                    document.getElementById('btn-batch-no').onclick = () => UI.closeModal('batch-modal');
                     UI.openModal('batch-modal');
                 }
             }
-
-            Handlers.refreshAll();
-            Handlers.saveSession();
-            UI.showToast('Transaction Updated');
+            Handlers.refreshAll(); Handlers.saveSession(); UI.showToast('Updated');
         }
     },
 
     toggleReconcile: (id) => { const tx = State.data.find(d => d.id === id); if(tx) { tx.reconciled = !tx.reconciled; Handlers.saveSession(); } },
     
+    // NEW: Toggle All Visible
     toggleAllRec: (checked) => {
         const search = document.getElementById('tx-search').value.toLowerCase();
         const visibleTxs = UI.getFilteredData().filter(d => d.type === 'transaction' && (!search || d.description.toLowerCase().includes(search) || d.category.toLowerCase().includes(search)));
@@ -228,43 +175,17 @@ export const Handlers = {
         Handlers.saveSession();
     },
 
+    // --- RULES & CATS ---
     addRule: () => {
         const key = document.getElementById('rule-keyword').value.trim();
         const cat = document.getElementById('rule-category').value;
-        if(key && cat) {
-            State.rules.push({ keyword: key, category: cat });
-            UI.renderRulesList();
-            document.getElementById('rule-keyword').value = '';
-            Handlers.saveSession();
-            UI.showToast('Rule Added');
-        }
+        if(key && cat) { State.rules.push({ keyword: key, category: cat }); UI.renderRulesList(); document.getElementById('rule-keyword').value = ''; Handlers.saveSession(); UI.showToast('Rule Added'); }
     },
-
     deleteRule: (index) => { State.rules.splice(index, 1); UI.renderRulesList(); Handlers.saveSession(); },
+    addCategory: () => { const name = document.getElementById('new-cat-name').value.trim(); if(name && !State.categories.includes(name)) { State.categories.push(name); State.categories.sort(); UI.populateRuleCategories(); UI.renderCategoryManagementList(); document.getElementById('new-cat-name').value = ''; Handlers.saveSession(); UI.showToast('Category Added'); } },
+    deleteCategory: (name) => { if(name === 'Uncategorized') return; State.categories = State.categories.filter(c => c !== name); State.data.forEach(t => { if(t.category === name) t.category = 'Uncategorized'; }); UI.populateRuleCategories(); UI.renderCategoryManagementList(); Handlers.refreshAll(); Handlers.saveSession(); },
 
-    addCategory: () => {
-        const name = document.getElementById('new-cat-name').value.trim();
-        if(name && !State.categories.includes(name)) {
-            State.categories.push(name);
-            State.categories.sort();
-            UI.populateRuleCategories();
-            UI.renderCategoryManagementList();
-            document.getElementById('new-cat-name').value = '';
-            Handlers.saveSession();
-            UI.showToast('Category Added');
-        }
-    },
-
-    deleteCategory: (name) => {
-        if(name === 'Uncategorized') return;
-        State.categories = State.categories.filter(c => c !== name);
-        State.data.forEach(t => { if(t.category === name) t.category = 'Uncategorized'; });
-        UI.populateRuleCategories();
-        UI.renderCategoryManagementList();
-        Handlers.refreshAll();
-        Handlers.saveSession();
-    },
-
+    // --- AP/AR ---
     openApArModal: (type) => {
         document.getElementById('ap-ar-id').value = '';
         document.getElementById('ap-ar-type').value = type;
@@ -276,7 +197,6 @@ export const Handlers = {
         document.getElementById('ap-ar-party').value = '';
         UI.openModal('ap-ar-modal');
     },
-
     saveApAr: () => {
         const type = document.getElementById('ap-ar-type').value;
         const item = {
@@ -293,27 +213,9 @@ export const Handlers = {
         Handlers.refreshAll();
         Handlers.saveSession();
     },
+    toggleApArStatus: (id) => { const item = State.data.find(d => d.id === id); if(item) { item.status = item.status === 'unpaid' ? 'paid' : 'unpaid'; Handlers.refreshAll(); Handlers.saveSession(); } },
 
-    toggleApArStatus: (id) => {
-        const item = State.data.find(d => d.id === id);
-        if(item) {
-            item.status = item.status === 'unpaid' ? 'paid' : 'unpaid';
-            Handlers.refreshAll();
-            Handlers.saveSession();
-        }
-    },
-
-    clearData: () => {
-        if(confirm("Are you sure? This cannot be undone.")) {
-            State.data = []; State.rules = [];
-            localStorage.removeItem('bk_data'); localStorage.removeItem('bk_rules'); localStorage.removeItem('bk_cats');
-            if(State.user) setDoc(doc(db, 'users', State.user.uid), { data: '[]', rules: '[]', categories: '[]' });
-            UI.closeModal('confirm-modal');
-            Handlers.refreshAll();
-            UI.showToast("All Data Cleared");
-        }
-    },
-
+    clearData: () => { if(confirm("Are you sure?")) { State.data = []; State.rules = []; localStorage.removeItem('bk_data'); localStorage.removeItem('bk_rules'); if(State.user) setDoc(doc(db, 'users', State.user.uid), { data: '[]', rules: '[]' }); UI.closeModal('confirm-modal'); Handlers.refreshAll(); UI.showToast("All Data Cleared"); } },
     exportToIIF: () => {
         const bankName = prompt("Enter Bank Account Name (QuickBooks):", "Checking");
         if(!bankName) return;
