@@ -5,22 +5,13 @@ import { db, doc, setDoc, getDoc, collection, getDocs, writeBatch, deleteDoc } f
 
 export const Handlers = {
     // --- IMPORT CSV ---
-    importCSV: async (file) => {
+    importCSV: (file) => {
         Papa.parse(file, {
             header: true, skipEmptyLines: true,
-            complete: async (results) => {
+            complete: (results) => {
                 const rawRows = results.data;
-                const headers = results.meta.fields || [];
-
-                // Smart Column Detection
-                const findCol = (patterns) => headers.find(h => patterns.some(p => h.toLowerCase().includes(p)));
-                const dateKey = findCol(['date', 'time']) || 'Date';
-                const descKey = findCol(['desc', 'memo', 'payee', 'name']) || 'Description';
-                const amtKey = findCol(['amount', 'total', 'net']) || 'Amount';
-                const debitKey = findCol(['debit', 'withdrawal']);
-                const creditKey = findCol(['credit', 'deposit']);
-
                 const existingCounts = {};
+                
                 State.data.forEach(tx => {
                     if(tx.type === 'transaction') {
                         const key = `${tx.date}-${tx.description.trim()}-${tx.amount}`;
@@ -29,19 +20,22 @@ export const Handlers = {
                 });
 
                 const parseRow = (row) => {
-                     const dateStr = row[dateKey];
-                     const desc = (row[descKey] || 'No Description').trim();
-                     const cleanNum = (val) => parseFloat((val || "0").toString().replace(/[^0-9.-]/g, ''));
-
-                     let amt = cleanNum(row[amtKey]);
-                     if (amt === 0 && (debitKey || creditKey)) {
-                         const debit = cleanNum(row[debitKey]);
-                         const credit = cleanNum(row[creditKey]);
-                         if (debit !== 0) amt = -Math.abs(debit);
-                         else if (credit !== 0) amt = Math.abs(credit);
+                     // Smart Column Matching
+                     const headers = Object.keys(row);
+                     const find = (arr) => headers.find(h => arr.some(x => h.toLowerCase().includes(x)));
+                     
+                     const dateStr = row[find(['date','transdate']) || 'Date'];
+                     const desc = (row[find(['desc','memo','payee']) || 'Description'] || 'No Desc').trim();
+                     let amt = parseFloat((row[find(['amount','total']) || 'Amount'] || "0").toString().replace(/[^0-9.-]/g, ''));
+                     
+                     if(isNaN(amt)) {
+                         const debit = parseFloat((row['Debit']||"0").toString().replace(/[^0-9.-]/g, ''));
+                         const credit = parseFloat((row['Credit']||"0").toString().replace(/[^0-9.-]/g, ''));
+                         if(debit !== 0) amt = -Math.abs(debit);
+                         else if(credit !== 0) amt = Math.abs(credit);
                      }
                      
-                     if(!dateStr || isNaN(amt)) return null;
+                     if(!dateStr || isNaN(amt) || amt === 0) return null;
 
                      let cleanDate;
                      try { cleanDate = new Date(dateStr).toLocaleDateString('en-CA'); } catch(e) { return null; }
@@ -64,7 +58,6 @@ export const Handlers = {
                      };
                 };
 
-                // Deduplicate
                 const newTxs = rawRows.map(row => {
                      const tx = parseRow(row);
                      if (!tx) return null;
@@ -76,56 +69,42 @@ export const Handlers = {
                      return tx;
                 }).filter(Boolean);
                 
-                // FORCE IMPORT Logic
-                let finalTxs = newTxs;
-                if (newTxs.length === 0) {
+                if (newTxs.length > 0) {
+                    State.data = [...State.data, ...newTxs];
+                    Handlers.refreshAll();
+                    UI.showToast(`Success! Imported ${newTxs.length} new transactions.`);
+                    Handlers.batchSaveTransactions(newTxs); // Save only new items to cloud
+                } else {
                      const forceTxs = rawRows.map(parseRow).filter(Boolean);
                      if (forceTxs.length > 0) {
-                         finalTxs = forceTxs;
-                         UI.showToast(`Imported ${forceTxs.length} transactions (Forced).`);
+                         State.data = [...State.data, ...forceTxs];
+                         Handlers.refreshAll();
+                         UI.showToast(`Forced Import: ${forceTxs.length} items.`);
+                         Handlers.batchSaveTransactions(forceTxs);
                      } else {
                          UI.showToast("Could not parse rows.", "error");
-                         return;
                      }
-                } else {
-                    UI.showToast(`Success! Imported ${newTxs.length} new transactions.`);
-                }
-
-                // UPDATE STATE
-                State.data = [...State.data, ...finalTxs];
-                Handlers.refreshAll();
-
-                // SAVE TO CLOUD (BATCHED)
-                if(State.user) {
-                    await Handlers.batchSaveTransactions(finalTxs);
-                } else {
-                    Handlers.saveSessionLocally();
                 }
             }
         });
     },
 
-    // --- INVOICE IMPORT ---
-    importInvoices: async (file) => {
+    // --- IMPORT INVOICES ---
+    importInvoices: (file) => {
         Papa.parse(file, {
             header: true, skipEmptyLines: true,
-            complete: async (results) => {
+            complete: (results) => {
                 const rawRows = results.data;
-                const headers = results.meta.fields || [];
-                const findCol = (patterns) => headers.find(h => patterns.some(p => h.toLowerCase().includes(p)));
-                
-                const dateKey = findCol(['date', 'invdate']) || 'Date';
-                const partyKey = findCol(['customer', 'client', 'bill to']) || 'Customer';
-                const numKey = findCol(['invoice #', 'inv #', 'number']) || 'Invoice #';
-                const amtKey = findCol(['amount', 'total', 'balance']) || 'Amount';
-
                 const existingInvoices = new Set(State.data.filter(d => d.type === 'ar').map(i => i.number ? i.number.toString().toLowerCase() : ''));
 
                 const newInvoices = rawRows.map(row => {
-                     const dateStr = row[dateKey];
-                     const party = (row[partyKey] || 'Unknown').trim();
-                     const number = (row[numKey] || '').toString().trim();
-                     const amt = parseFloat((row[amtKey] || "0").toString().replace(/[^0-9.-]/g, ''));
+                     const headers = Object.keys(row);
+                     const find = (arr) => headers.find(h => arr.some(x => h.toLowerCase().includes(x)));
+
+                     const dateStr = row[find(['date','invdate']) || 'Date'];
+                     const party = (row[find(['customer','client']) || 'Customer'] || 'Unknown').trim();
+                     const number = (row[find(['invoice','num']) || 'Invoice #'] || '').toString().trim();
+                     const amt = parseFloat((row[find(['amount','total']) || 'Amount'] || "0").toString().replace(/[^0-9.-]/g, ''));
                      
                      if(!dateStr || isNaN(amt)) return null;
                      if (number && existingInvoices.has(number.toLowerCase())) return null;
@@ -140,8 +119,7 @@ export const Handlers = {
                     State.data = [...State.data, ...newInvoices];
                     Handlers.refreshAll();
                     UI.showToast(`Success! Imported ${newInvoices.length} invoices.`);
-                    if(State.user) await Handlers.batchSaveTransactions(newInvoices);
-                    else Handlers.saveSessionLocally();
+                    Handlers.batchSaveTransactions(newInvoices);
                 } else {
                     UI.showToast("No new invoices found.", "error");
                 }
@@ -149,27 +127,34 @@ export const Handlers = {
         });
     },
 
-    // --- BATCH SAVE HELPER (Solves 1MB Limit) ---
+    // --- BATCH SAVE (New Cloud Storage) ---
     batchSaveTransactions: async (items) => {
-        if (!State.user) return;
-        
-        // Write in batches of 500 (Firestore Limit)
-        const batchSize = 500;
-        for (let i = 0; i < items.length; i += batchSize) {
-            const chunk = items.slice(i, i + batchSize);
-            const batch = writeBatch(db);
-            chunk.forEach(item => {
-                const ref = doc(db, 'users', State.user.uid, 'transactions', item.id);
-                batch.set(ref, item);
-            });
-            await batch.commit();
+        if (!State.user) {
+            Handlers.saveSessionLocally();
+            return;
         }
-        console.log(`Saved ${items.length} items to subcollection.`);
+        
+        try {
+            const batchSize = 400; // Safe batch size
+            for (let i = 0; i < items.length; i += batchSize) {
+                const chunk = items.slice(i, i + batchSize);
+                const batch = writeBatch(db);
+                chunk.forEach(item => {
+                    // Save to sub-collection 'transactions'
+                    const ref = doc(db, 'users', State.user.uid, 'transactions', item.id);
+                    batch.set(ref, item);
+                });
+                await batch.commit();
+            }
+            console.log(`Saved ${items.length} items to cloud.`);
+        } catch (e) {
+            console.error("Batch Save Error:", e);
+            UI.showToast("Cloud Save Failed: Check Permissions", "error");
+        }
     },
 
-    // --- SAVE / LOAD ---
+    // --- SAVE METADATA (Rules/Cats) ---
     saveSession: async () => {
-        // Only saves Metadata (Rules, Categories). Transactions are saved individually now.
         if (State.user) {
             try {
                 const statusEl = document.getElementById('cloud-status');
@@ -179,13 +164,13 @@ export const Handlers = {
                     rules: JSON.stringify(State.rules),
                     categories: JSON.stringify(State.categories),
                     lastUpdated: new Date()
-                }, { merge: true }); // Merge to not overwrite existing fields
+                }, { merge: true }); // Merge preserves subcollections
                 
                 if(statusEl) statusEl.classList.add('hidden');
                 UI.showToast("Settings Saved");
             } catch (e) { 
-                console.error("Save Error:", e);
-                UI.showToast(`Save Failed: ${e.message}`, "error"); 
+                console.error("Meta Save Error:", e);
+                UI.showToast("Settings Save Failed", "error"); 
             }
         } else {
             Handlers.saveSessionLocally();
@@ -199,6 +184,7 @@ export const Handlers = {
         UI.showToast("Saved Locally");
     },
 
+    // --- LOAD WITH FALLBACK ---
     loadSession: async () => {
         if(State.user) {
             try {
@@ -210,20 +196,34 @@ export const Handlers = {
                     if(d.rules) State.rules = JSON.parse(d.rules);
                     if(d.categories) State.categories = JSON.parse(d.categories);
                     
-                    // MIGRATION CHECK: If old 'data' blob exists, migrate it
-                    if (d.data && d.data.length > 2) {
-                        console.log("Migrating legacy data...");
-                        const oldData = JSON.parse(d.data);
-                        await Handlers.batchSaveTransactions(oldData); // Move to subcollection
-                        await setDoc(userDocRef, { data: null }, { merge: true }); // Clear old blob
-                        State.data = oldData;
+                    // MIGRATION Logic
+                    if (d.data && d.data.length > 20) { // If 'data' string exists and is not empty '[]'
+                        console.log("Attempting migration...");
+                        try {
+                            const oldData = JSON.parse(d.data);
+                            State.data = oldData; // Load into memory immediately so user sees data
+                            Handlers.refreshAll();
+                            
+                            // Try to migrate to subcollection
+                            await Handlers.batchSaveTransactions(oldData);
+                            await setDoc(userDocRef, { data: null }, { merge: true }); // Clear old blob
+                            UI.showToast("Migration Complete");
+                        } catch (migrationErr) {
+                            console.error("Migration blocked:", migrationErr);
+                            UI.showToast("Notice: Update Firestore Rules", "error");
+                        }
                     } else {
-                        // Load from Subcollection
-                        const q = collection(db, 'users', State.user.uid, 'transactions');
-                        const querySnapshot = await getDocs(q);
-                        const txs = [];
-                        querySnapshot.forEach((doc) => txs.push(doc.data()));
-                        State.data = txs;
+                        // Load from new Subcollection
+                        try {
+                            const q = collection(db, 'users', State.user.uid, 'transactions');
+                            const querySnapshot = await getDocs(q);
+                            const txs = [];
+                            querySnapshot.forEach((doc) => txs.push(doc.data()));
+                            State.data = txs;
+                        } catch (subErr) {
+                            console.error("Subcollection read failed:", subErr);
+                             // If read fails, State.data remains empty or falls back
+                        }
                     }
                 }
             } catch(e) { console.error("Load Error:", e); }
@@ -247,13 +247,21 @@ export const Handlers = {
         if(State.currentView !== 'dashboard') UI.switchTab(State.currentView); 
     },
 
-    // --- INDIVIDUAL UPDATES (Writes directly to DB) ---
+    // --- INDIVIDUAL UPDATES ---
     updateSingleItem: async (item) => {
+        // Update in memory
+        const idx = State.data.findIndex(d => d.id === item.id);
+        if(idx > -1) State.data[idx] = item;
+        
+        // Save
         if(State.user) {
             try {
                 const ref = doc(db, 'users', State.user.uid, 'transactions', item.id);
                 await setDoc(ref, item); 
-            } catch(e) { console.error("Update failed", e); }
+            } catch(e) { 
+                console.error("Update failed", e); 
+                UI.showToast("Sync Error: Check Rules", "error");
+            }
         } else {
             Handlers.saveSessionLocally();
         }
@@ -265,24 +273,29 @@ export const Handlers = {
         if(tx) {
             const oldCat = tx.category;
             const newCat = document.getElementById('modal-category').value;
-            tx.category = newCat;
-            tx.job = document.getElementById('modal-job').value;
-            tx.notes = document.getElementById('modal-notes').value;
+            
+            // Create updated object
+            const updatedTx = {
+                ...tx,
+                category: newCat,
+                job: document.getElementById('modal-job').value,
+                notes: document.getElementById('modal-notes').value
+            };
             
             if(newCat && !State.categories.includes(newCat)) State.categories.push(newCat);
             UI.closeModal('edit-modal');
             
+            // Handle Batch
             if (oldCat !== newCat) {
                 const similar = State.data.filter(t => t.type === 'transaction' && t.id !== id && t.description.toLowerCase().includes(tx.description.split(' ')[0].toLowerCase()));
                 if(similar.length > 0) {
                     const msgEl = document.getElementById('batch-msg');
                     if(msgEl) msgEl.textContent = `Update ${similar.length} other transactions like "${tx.description.split(' ')[0]}..." to "${newCat}"?`;
+                    
                     document.getElementById('btn-batch-yes').onclick = async () => { 
                         similar.forEach(t => t.category = newCat); 
-                        // Batch update for similar items
                         if(State.user) await Handlers.batchSaveTransactions(similar);
                         else Handlers.saveSessionLocally();
-
                         UI.closeModal('batch-modal'); 
                         Handlers.refreshAll(); 
                     };
@@ -291,7 +304,7 @@ export const Handlers = {
                 }
             }
 
-            Handlers.updateSingleItem(tx);
+            Handlers.updateSingleItem(updatedTx);
             Handlers.refreshAll();
             UI.showToast('Updated');
         }
@@ -302,7 +315,7 @@ export const Handlers = {
         if(tx) { 
             tx.reconciled = !tx.reconciled; 
             Handlers.updateSingleItem(tx); 
-            Handlers.refreshAll(); // Refresh to update recon calc
+            Handlers.refreshAll(); 
         } 
     },
     
@@ -317,7 +330,7 @@ export const Handlers = {
         else Handlers.saveSessionLocally();
     },
 
-    // --- OTHER ---
+    // --- RULES / CATS / OTHER ---
     addRule: () => {
         const key = document.getElementById('rule-keyword').value.trim();
         const cat = document.getElementById('rule-category').value;
@@ -325,12 +338,12 @@ export const Handlers = {
             State.rules.push({ keyword: key, category: cat });
             UI.renderRulesList();
             document.getElementById('rule-keyword').value = '';
-            Handlers.saveSession(); // Saves rules to main doc
+            Handlers.saveSession(); // Saves meta
             UI.showToast('Rule Added');
         }
     },
     deleteRule: (index) => { State.rules.splice(index, 1); UI.renderRulesList(); Handlers.saveSession(); },
-
+    
     addCategory: () => {
         const name = document.getElementById('new-cat-name').value.trim();
         if(name && !State.categories.includes(name)) {
@@ -339,10 +352,11 @@ export const Handlers = {
             UI.populateRuleCategories();
             UI.renderCategoryManagementList();
             document.getElementById('new-cat-name').value = '';
-            Handlers.saveSession(); // Saves cats to main doc
+            Handlers.saveSession();
             UI.showToast('Category Added');
         }
     },
+    
     deleteCategory: (name) => {
         if(name === 'Uncategorized') return;
         State.categories = State.categories.filter(c => c !== name);
@@ -357,8 +371,8 @@ export const Handlers = {
         UI.populateRuleCategories();
         UI.renderCategoryManagementList();
         Handlers.refreshAll();
-        Handlers.saveSession(); // Save Cats
-        if(State.user && affected.length > 0) Handlers.batchSaveTransactions(affected); // Update txs
+        Handlers.saveSession();
+        if(State.user && affected.length > 0) Handlers.batchSaveTransactions(affected);
     },
 
     openApArModal: (type) => {
@@ -400,31 +414,31 @@ export const Handlers = {
         }
     },
 
-    // CLEAR: Must delete subcollection docs
     clearData: async () => {
         if(confirm("Are you sure? This cannot be undone.")) {
             if(State.user) {
-                // Delete cloud transactions (Chunked)
-                const q = collection(db, 'users', State.user.uid, 'transactions');
-                const snapshot = await getDocs(q);
-                const batchSize = 500;
-                let batch = writeBatch(db);
-                let count = 0;
-                
-                snapshot.forEach(doc => {
-                    batch.delete(doc.ref);
-                    count++;
-                    if (count >= batchSize) {
-                        batch.commit();
-                        batch = writeBatch(db);
-                        count = 0;
-                    }
-                });
-                await batch.commit(); // Commit remaining
-                
-                await setDoc(doc(db, 'users', State.user.uid), { data: null, rules: '[]', categories: '[]' });
+                try {
+                    // Delete subcollection (in chunks)
+                    const q = collection(db, 'users', State.user.uid, 'transactions');
+                    const snapshot = await getDocs(q);
+                    const batchSize = 400;
+                    let batch = writeBatch(db);
+                    let count = 0;
+                    
+                    snapshot.forEach(doc => {
+                        batch.delete(doc.ref);
+                        count++;
+                        if (count >= batchSize) {
+                            batch.commit();
+                            batch = writeBatch(db);
+                            count = 0;
+                        }
+                    });
+                    await batch.commit();
+                    
+                    await setDoc(doc(db, 'users', State.user.uid), { data: null, rules: '[]', categories: '[]' });
+                } catch(e) { console.error("Clear failed", e); }
             }
-            
             State.data = []; State.rules = [];
             localStorage.removeItem('bk_data'); localStorage.removeItem('bk_rules'); localStorage.removeItem('bk_cats');
             UI.closeModal('confirm-modal');
@@ -433,7 +447,6 @@ export const Handlers = {
         }
     },
     
-    // KEEP EXPORT (Read-only)
     exportToIIF: () => {
         const bankName = prompt("Enter Bank Account Name (QuickBooks):", "Checking");
         if(!bankName) return;
