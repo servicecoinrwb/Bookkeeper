@@ -55,13 +55,28 @@ export const UI = {
         }
     },
 
+    // --- FIX: ROBUST DATE FILTERING ---
+    // Parses 'YYYY-MM-DD' directly as string to avoid Timezone shifts (e.g. Jan 1 becoming Dec 31)
     getFilteredData() {
         return State.data.filter(d => {
-            const date = new Date(d.date);
-            const yearMatch = State.filters.year === 'all' || date.getFullYear().toString() === State.filters.year;
-            const monthMatch = State.filters.month === 'all' || (date.getMonth() + 1).toString() === State.filters.month;
+            if(!d.date) return false;
+            // Date format expected: "YYYY-MM-DD"
+            const parts = d.date.split('-');
+            if(parts.length !== 3) return false;
+            
+            const year = parts[0]; 
+            const month = parseInt(parts[1]).toString(); // "01" -> "1"
+
+            const yearMatch = State.filters.year === 'all' || year === State.filters.year;
+            const monthMatch = State.filters.month === 'all' || month === State.filters.month;
+            
             return yearMatch && monthMatch;
-        }).sort((a,b) => new Date(b.date) - new Date(a.date));
+        }).sort((a,b) => {
+            // Sort Descending safely
+            if (a.date > b.date) return -1;
+            if (a.date < b.date) return 1;
+            return 0;
+        });
     },
 
     updateDashboard() {
@@ -96,7 +111,6 @@ export const UI = {
         if(State.currentView === 'taxes') this.renderTaxes();
     },
 
-    // --- CHARTS ---
     setupCharts() {
         const createChart = (id, type, options = {}) => {
             const el = document.getElementById(id);
@@ -144,10 +158,13 @@ export const UI = {
 
         const monthlyData = {};
         txs.forEach(t => {
-            const month = new Date(t.date).toLocaleString('default', { month: 'short' });
-            if(!monthlyData[month]) monthlyData[month] = { income: 0, expense: 0 };
-            if(t.amount > 0 && t.category !== 'Transfer') monthlyData[month].income += t.amount;
-            if(t.amount < 0 && t.category !== 'Transfer' && t.category !== "Owner's Draw") monthlyData[month].expense += Math.abs(t.amount);
+            // Safe month extraction from string YYYY-MM-DD
+            const monthIndex = parseInt(t.date.split('-')[1]) - 1;
+            const monthName = new Date(2000, monthIndex, 1).toLocaleString('default', { month: 'short' });
+            
+            if(!monthlyData[monthName]) monthlyData[monthName] = { income: 0, expense: 0 };
+            if(t.amount > 0 && t.category !== 'Transfer') monthlyData[monthName].income += t.amount;
+            if(t.amount < 0 && t.category !== 'Transfer' && t.category !== "Owner's Draw") monthlyData[monthName].expense += Math.abs(t.amount);
         });
         const labels = Object.keys(monthlyData).reverse();
 
@@ -184,7 +201,7 @@ export const UI = {
         tbody.innerHTML = data.map(t => `
             <tr class="hover:bg-slate-50 border-b">
                 <td class="px-6 py-4"><input type="checkbox" data-id="${t.id}" class="reconcile-checkbox" ${t.reconciled ? 'checked' : ''}></td>
-                <td class="px-6 py-4 text-slate-500">${new Date(t.date).toLocaleDateString()}</td>
+                <td class="px-6 py-4 text-slate-500">${t.date}</td>
                 <td class="px-6 py-4 font-medium">${t.description}</td>
                 <td class="px-6 py-4 font-bold ${t.amount >= 0 ? 'text-emerald-600' : 'text-slate-800'}">${Utils.formatCurrency(t.amount)}</td>
                 <td class="px-6 py-4"><span class="bg-slate-100 px-2 py-1 rounded text-xs">${t.category}</span></td>
@@ -196,7 +213,6 @@ export const UI = {
         tbody.querySelectorAll('.reconcile-checkbox').forEach(b => b.addEventListener('change', e => Handlers.toggleReconcile(e.target.dataset.id)));
     },
 
-    // --- RULES & CATEGORIES ---
     renderRulesList() {
         const div = document.getElementById('rules-list');
         if(div) {
@@ -233,15 +249,18 @@ export const UI = {
         const select = document.getElementById('rule-category');
         if(select) select.innerHTML = opts;
         
-        // Also update Edit Modal list
         const dl = document.getElementById('modal-category');
         if(dl) dl.innerHTML = opts;
     },
 
-    // --- OTHER ---
     renderDateFilters() {
-        const years = [...new Set(State.data.map(d => new Date(d.date).getFullYear()))].filter(y => !isNaN(y)).sort().reverse();
-        const currentYear = new Date().getFullYear();
+        // Robust Year Extraction from String
+        const years = [...new Set(State.data.map(d => {
+            if(!d.date) return null;
+            return d.date.split('-')[0];
+        }))].filter(y => y).sort().reverse();
+        
+        const currentYear = new Date().getFullYear().toString();
         if (!years.includes(currentYear)) years.unshift(currentYear);
 
         const yearHTML = '<option value="all">All Years</option>' + years.map(y => `<option value="${y}">${y}</option>`).join('');
@@ -311,7 +330,6 @@ export const UI = {
             cats[t.category] += t.amount;
         });
         
-        // Calculate P&L logic
         Object.values(cats).forEach(amount => {
             if(amount > 0) income += amount;
             else if (amount < 0) expenses += amount;
@@ -341,7 +359,11 @@ export const UI = {
 
         data.forEach(item => {
             if (search && !(item.party && item.party.toLowerCase().includes(search))) return;
-            const diffDays = Math.floor((today - new Date(item.date)) / (1000 * 60 * 60 * 24));
+            // Robust Date Parsing
+            const parts = item.date.split('-');
+            const d = new Date(parts[0], parts[1]-1, parts[2]); 
+            const diffDays = Math.floor((today - d) / (1000 * 60 * 60 * 24));
+            
             if (diffDays <= 0) buckets['Current'].push(item);
             else if (diffDays <= 30) buckets['1-30 Days'].push(item);
             else if (diffDays <= 60) buckets['31-60 Days'].push(item);
@@ -393,7 +415,6 @@ export const UI = {
     renderSimpleTable(type, containerId) {
         let data = this.getFilteredData().filter(d => d.type === type);
         
-        // Search Logic for AR/AP
         const searchEl = document.getElementById(`${type}-search`);
         if (searchEl && searchEl.value) {
             const term = searchEl.value.toLowerCase();
@@ -408,8 +429,20 @@ export const UI = {
 
     renderTaxes() {
         const selectedYear = State.filters.year;
-        // Filter Transactions by Year & Month (from shared filter logic)
-        const txs = this.getFilteredData().filter(d => d.type === 'transaction');
+        // Filter transactions for tax year (IGNORE MONTH for taxes, taxes are annual usually, but fine to filter by both if desired)
+        const txs = State.data.filter(d => {
+            if (d.type !== 'transaction') return false;
+            // Parse robust YYYY-MM-DD
+            const parts = d.date.split('-');
+            const year = parts[0];
+            const month = parseInt(parts[1]).toString();
+
+            const yearMatch = selectedYear === 'all' || year === selectedYear;
+            // Optionally check month if you want monthly tax estimates
+            const monthMatch = State.filters.month === 'all' || month === State.filters.month;
+            
+            return yearMatch && monthMatch;
+        });
 
         let taxableProfit = 0;
         txs.forEach(t => { 
