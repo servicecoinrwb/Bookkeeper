@@ -17,9 +17,10 @@ export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const provider = new GoogleAuthProvider();
 
-// CORRECTED EXPORTS
-// Re-export Auth functions from the Auth SDK
 export { signInWithPopup, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js";
+
+// UPDATED EXPORTS: Added collection, getDocs, writeBatch, deleteDoc
+export { doc, getDoc, setDoc, collection, getDocs, writeBatch, deleteDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
 
 // Re-export Firestore functions from the Firestore SDK
 export { doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js";
