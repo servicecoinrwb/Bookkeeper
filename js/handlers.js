@@ -10,19 +10,16 @@ export const Handlers = {
             header: true, 
             skipEmptyLines: true,
             complete: async (results) => {
-                const headers = results.meta.fields || [];
+                // Sanitize headers: remove quotes and extra spaces to ensure matching works
+                const headers = (results.meta.fields || []).map(h => h.replace(/['"]+/g, '').trim());
                 const rawRows = results.data;
                 
-                // --- DETECT FILE TYPE (Prioritize Invoices) ---
-                // We check for specific columns that ONLY exist in your AppSheet export
-                const isInvoice = headers.some(h => 
-                    h.trim() === 'INVNum' || 
-                    h.trim() === 'Grand Total' || 
-                    h.trim() === 'Invoice Status'
-                );
+                // --- DETECT FILE TYPE ---
+                // We check for "INVNum" specifically for your AppSheet file
+                const isInvoice = headers.some(h => h === 'INVNum' || h === 'Grand Total');
 
                 if (isInvoice) {
-                    console.log("Detected Invoice File");
+                    console.log("Detected Invoice File (A/R)");
                     Handlers.processInvoices(rawRows);
                 } else {
                     console.log("Detected Bank Transaction File");
@@ -51,15 +48,23 @@ export const Handlers = {
         });
 
         const parseRow = (row) => {
-             const dateStr = row[dateKey];
-             const desc = (row[descKey] || 'No Description').trim();
+             // Access row using the original key (PapaParse handles the mapping, but we cleaned headers for detection)
+             // We need to find the key in the ROW that matches our detected key
+             const getVal = (k) => {
+                 if(!k) return null;
+                 // Find the actual key in the row object that matches our clean key
+                 const actualKey = Object.keys(row).find(rk => rk.replace(/['"]+/g, '').trim() === k);
+                 return row[actualKey || k];
+             };
+
+             const dateStr = getVal(dateKey);
+             const desc = (getVal(descKey) || 'No Description').trim();
              const cleanNum = (val) => parseFloat((val || "0").toString().replace(/[^0-9.-]/g, ''));
 
-             let amt = cleanNum(row[amtKey]);
-             // Handle Separate Debit/Credit Columns
+             let amt = cleanNum(getVal(amtKey));
              if (amt === 0 && (debitKey || creditKey)) {
-                 const debit = cleanNum(row[debitKey]);
-                 const credit = cleanNum(row[creditKey]);
+                 const debit = cleanNum(getVal(debitKey));
+                 const credit = cleanNum(getVal(creditKey));
                  if (debit !== 0) amt = -Math.abs(debit);
                  else if (credit !== 0) amt = Math.abs(credit);
              }
@@ -106,18 +111,20 @@ export const Handlers = {
         const existingInvoices = new Set(State.data.filter(d => d.type === 'ar').map(i => i.number ? i.number.toString().toLowerCase() : ''));
 
         const newInvoices = rawRows.map(row => {
-             // Map AppSheet Columns
-             const dateStr = row['TransDate'] || row['Date'];
-             const party = (row['Customer'] || row['Bill To'] || 'Unknown').trim();
-             const number = (row['INVNum'] || row['Invoice #'] || '').toString().trim();
-             const statusRaw = (row['Invoice Status'] || '').toLowerCase();
+             // Helper to handle keys with/without quotes
+             const getVal = (k) => {
+                 const actualKey = Object.keys(row).find(rk => rk.replace(/['"]+/g, '').trim() === k);
+                 return row[actualKey || k];
+             };
+
+             const dateStr = getVal('TransDate') || getVal('Date');
+             const party = (getVal('Bill To') || getVal('Customer') || 'Unknown').trim();
+             const number = (getVal('INVNum') || getVal('Invoice #') || '').toString().trim();
+             const statusRaw = (getVal('Invoice Status') || '').toLowerCase();
              
-             // Clean Currency
-             const amt = parseFloat((row['Grand Total'] || "0").toString().replace(/[^0-9.-]/g, ''));
+             const amt = parseFloat((getVal('Grand Total') || "0").toString().replace(/[^0-9.-]/g, ''));
              
              if(!dateStr || isNaN(amt)) return null;
-             
-             // Skip duplicates
              if (number && existingInvoices.has(number.toLowerCase())) return null;
 
              let cleanDate;
@@ -137,33 +144,20 @@ export const Handlers = {
         Handlers.finalizeImport(newInvoices, 'invoices');
     },
 
-    // --- DIRECT CALL (Backup) ---
-    importInvoices: (file) => {
-        // Just passes to main import which now auto-detects
-        Handlers.importCSV(file);
-    },
-
-    // --- FINALIZE ---
+    // --- COMMON FINALIZE ---
     finalizeImport: async (items, typeLabel) => {
         if (items.length > 0) {
             State.data = [...State.data, ...items];
             Handlers.refreshAll();
             UI.showToast(`Success! Imported ${items.length} ${typeLabel}.`);
-            
             if(State.user) await Handlers.batchSaveTransactions(items);
             else Handlers.saveSessionLocally();
         } else {
-            // Only ask to force if it was meant to be transactions
-            if(typeLabel === 'transactions' && confirm("No new unique data found. Force import anyway?")) {
-                 // Forcing re-process (skipping dup check logic not shown for brevity, but UI toast handles it)
-                 UI.showToast("Import cancelled.", "error");
-            } else {
-                UI.showToast(`No new ${typeLabel} found (duplicates skipped).`, "error");
-            }
+            UI.showToast(`No new ${typeLabel} found.`, "error");
         }
     },
 
-    // --- BATCH SAVE HELPER ---
+    // --- BATCH SAVE ---
     batchSaveTransactions: async (items) => {
         if (!State.user) return;
         const batchSize = 450; 
@@ -178,22 +172,20 @@ export const Handlers = {
         }
     },
 
-    // --- SAVE SESSION (Metadata) ---
+    // --- SAVE / LOAD ---
     saveSession: async () => {
         if (State.user) {
             try {
                 const statusEl = document.getElementById('cloud-status');
                 if(statusEl) statusEl.classList.remove('hidden');
-                
                 await setDoc(doc(db, 'users', State.user.uid), {
                     rules: JSON.stringify(State.rules),
                     categories: JSON.stringify(State.categories),
                     lastUpdated: new Date()
                 }, { merge: true });
-                
                 if(statusEl) statusEl.classList.add('hidden');
                 UI.showToast("Settings Saved");
-            } catch (e) { console.error(e); UI.showToast(`Save Failed: ${e.message}`, "error"); }
+            } catch (e) { console.error(e); UI.showToast("Save Failed", "error"); }
         } else {
             Handlers.saveSessionLocally();
         }
@@ -206,13 +198,11 @@ export const Handlers = {
         UI.showToast("Saved Locally");
     },
 
-    // --- LOAD SESSION ---
     loadSession: async () => {
         if(State.user) {
             try {
                 const userDocRef = doc(db, 'users', State.user.uid);
                 const userDoc = await getDoc(userDocRef);
-                
                 if(userDoc.exists()) {
                     const d = userDoc.data();
                     if(d.rules) State.rules = JSON.parse(d.rules);
@@ -250,13 +240,9 @@ export const Handlers = {
         UI.renderCategoryManagementList();
     },
 
-    refreshAll: () => { 
-        UI.renderDateFilters(); 
-        UI.updateDashboard(); 
-        if(State.currentView !== 'dashboard') UI.switchTab(State.currentView); 
-    },
+    refreshAll: () => { UI.renderDateFilters(); UI.updateDashboard(); if(State.currentView !== 'dashboard') UI.switchTab(State.currentView); },
 
-    // --- UPDATE HELPERS ---
+    // --- UPDATES & ACTIONS ---
     updateSingleItem: async (item) => {
         const idx = State.data.findIndex(d => d.id === item.id);
         if(idx > -1) State.data[idx] = item;
@@ -271,7 +257,6 @@ export const Handlers = {
         }
     },
 
-    // --- ACTIONS ---
     editTransaction: (id) => {
         const tx = State.data.find(d => d.id === id);
         if(!tx) return;
@@ -293,28 +278,18 @@ export const Handlers = {
             const oldCat = tx.category;
             const newCat = document.getElementById('modal-category').value;
             const updatedTx = { ...tx, category: newCat, job: document.getElementById('modal-job').value, notes: document.getElementById('modal-notes').value };
-            
             if(newCat && !State.categories.includes(newCat)) State.categories.push(newCat);
             UI.closeModal('edit-modal');
-            
             if (oldCat !== newCat) {
                 const similar = State.data.filter(t => t.type === 'transaction' && t.id !== id && t.description.toLowerCase().includes(tx.description.split(' ')[0].toLowerCase()));
                 if(similar.length > 0) {
                     const msgEl = document.getElementById('batch-msg');
-                    if(msgEl) msgEl.textContent = `Update ${similar.length} other transactions like "${tx.description.split(' ')[0]}..." to "${newCat}"?`;
-                    
-                    document.getElementById('btn-batch-yes').onclick = async () => { 
-                        similar.forEach(t => t.category = newCat); 
-                        if(State.user) await Handlers.batchSaveTransactions(similar);
-                        else Handlers.saveSessionLocally();
-                        UI.closeModal('batch-modal'); 
-                        Handlers.refreshAll(); 
-                    };
+                    if(msgEl) msgEl.textContent = `Update ${similar.length} other transactions like "${tx.description.split(' ')[0]}..."?`;
+                    document.getElementById('btn-batch-yes').onclick = async () => { similar.forEach(t => t.category = newCat); if(State.user) await Handlers.batchSaveTransactions(similar); else Handlers.saveSessionLocally(); UI.closeModal('batch-modal'); Handlers.refreshAll(); };
                     document.getElementById('btn-batch-no').onclick = () => UI.closeModal('batch-modal');
                     UI.openModal('batch-modal');
                 }
             }
-
             Handlers.updateSingleItem(updatedTx);
             Handlers.refreshAll();
             UI.showToast('Updated');
@@ -331,67 +306,15 @@ export const Handlers = {
         else Handlers.saveSessionLocally();
     },
 
-    addRule: () => {
-        const key = document.getElementById('rule-keyword').value.trim();
-        const cat = document.getElementById('rule-category').value;
-        if(key && cat) { State.rules.push({ keyword: key, category: cat }); UI.renderRulesList(); document.getElementById('rule-keyword').value = ''; Handlers.saveSession(); UI.showToast('Rule Added'); }
-    },
+    addRule: () => { const key = document.getElementById('rule-keyword').value.trim(); const cat = document.getElementById('rule-category').value; if(key && cat) { State.rules.push({ keyword: key, category: cat }); UI.renderRulesList(); document.getElementById('rule-keyword').value = ''; Handlers.saveSession(); UI.showToast('Rule Added'); } },
     deleteRule: (index) => { State.rules.splice(index, 1); UI.renderRulesList(); Handlers.saveSession(); },
-    
-    addCategory: () => {
-        const name = document.getElementById('new-cat-name').value.trim();
-        if(name && !State.categories.includes(name)) {
-            State.categories.push(name);
-            State.categories.sort();
-            UI.populateRuleCategories();
-            UI.renderCategoryManagementList();
-            document.getElementById('new-cat-name').value = '';
-            Handlers.saveSession();
-            UI.showToast('Category Added');
-        }
-    },
-    deleteCategory: (name) => {
-        if(name === 'Uncategorized') return;
-        State.categories = State.categories.filter(c => c !== name);
-        const affected = [];
-        State.data.forEach(t => { if(t.category === name) { t.category = 'Uncategorized'; affected.push(t); } });
-        UI.populateRuleCategories();
-        UI.renderCategoryManagementList();
-        Handlers.refreshAll();
-        Handlers.saveSession();
-        if(State.user && affected.length > 0) Handlers.batchSaveTransactions(affected);
-    },
+    addCategory: () => { const name = document.getElementById('new-cat-name').value.trim(); if(name && !State.categories.includes(name)) { State.categories.push(name); State.categories.sort(); UI.populateRuleCategories(); UI.renderCategoryManagementList(); document.getElementById('new-cat-name').value = ''; Handlers.saveSession(); UI.showToast('Category Added'); } },
+    deleteCategory: (name) => { if(name === 'Uncategorized') return; State.categories = State.categories.filter(c => c !== name); State.data.forEach(t => { if(t.category === name) { t.category = 'Uncategorized'; } }); UI.populateRuleCategories(); UI.renderCategoryManagementList(); Handlers.refreshAll(); Handlers.saveSession(); },
 
-    openApArModal: (type) => {
-        document.getElementById('ap-ar-id').value = '';
-        document.getElementById('ap-ar-type').value = type;
-        document.getElementById('ap-ar-title').textContent = type === 'ar' ? 'Add Invoice' : 'Add Bill';
-        document.getElementById('ap-ar-party-label').textContent = type === 'ar' ? 'Customer' : 'Vendor';
-        document.getElementById('ap-ar-date').value = new Date().toISOString().split('T')[0];
-        document.getElementById('ap-ar-amount').value = '';
-        document.getElementById('ap-ar-number').value = '';
-        document.getElementById('ap-ar-party').value = '';
-        UI.openModal('ap-ar-modal');
-    },
-    saveApAr: () => {
-        const type = document.getElementById('ap-ar-type').value;
-        const item = {
-            id: Utils.generateId(type),
-            type: type,
-            party: document.getElementById('ap-ar-party').value,
-            number: document.getElementById('ap-ar-number').value,
-            date: document.getElementById('ap-ar-date').value,
-            amount: parseFloat(document.getElementById('ap-ar-amount').value) || 0,
-            status: 'unpaid'
-        };
-        State.data.push(item);
-        UI.closeModal('ap-ar-modal');
-        Handlers.updateSingleItem(item);
-        Handlers.refreshAll();
-        UI.showToast(type === 'ar' ? "Invoice Added" : "Bill Added");
-    },
+    openApArModal: (type) => { document.getElementById('ap-ar-id').value = ''; document.getElementById('ap-ar-type').value = type; document.getElementById('ap-ar-title').textContent = type === 'ar' ? 'Add Invoice' : 'Add Bill'; document.getElementById('ap-ar-party-label').textContent = type === 'ar' ? 'Customer' : 'Vendor'; document.getElementById('ap-ar-date').value = new Date().toISOString().split('T')[0]; document.getElementById('ap-ar-amount').value = ''; document.getElementById('ap-ar-number').value = ''; document.getElementById('ap-ar-party').value = ''; UI.openModal('ap-ar-modal'); },
+    saveApAr: () => { const type = document.getElementById('ap-ar-type').value; const item = { id: Utils.generateId(type), type: type, party: document.getElementById('ap-ar-party').value, number: document.getElementById('ap-ar-number').value, date: document.getElementById('ap-ar-date').value, amount: parseFloat(document.getElementById('ap-ar-amount').value) || 0, status: 'unpaid' }; State.data.push(item); UI.closeModal('ap-ar-modal'); Handlers.updateSingleItem(item); Handlers.refreshAll(); UI.showToast("Item Added"); },
     toggleApArStatus: (id) => { const item = State.data.find(d => d.id === id); if(item) { item.status = item.status === 'unpaid' ? 'paid' : 'unpaid'; Handlers.updateSingleItem(item); Handlers.refreshAll(); } },
-
+    
     clearData: async () => {
         if(confirm("Are you sure? This cannot be undone.")) {
             if(State.user) {
@@ -401,11 +324,7 @@ export const Handlers = {
                     const batchSize = 400;
                     let batch = writeBatch(db);
                     let count = 0;
-                    snapshot.forEach(doc => {
-                        batch.delete(doc.ref);
-                        count++;
-                        if (count >= batchSize) { batch.commit(); batch = writeBatch(db); count = 0; }
-                    });
+                    snapshot.forEach(doc => { batch.delete(doc.ref); count++; if(count >= batchSize) { batch.commit(); batch = writeBatch(db); count = 0; } });
                     await batch.commit();
                     await setDoc(doc(db, 'users', State.user.uid), { data: null, rules: '[]', categories: '[]' });
                 } catch(e) { console.error("Clear failed", e); }
@@ -418,19 +337,5 @@ export const Handlers = {
         }
     },
     
-    exportToIIF: () => {
-        const bankName = prompt("Enter Bank Account Name (QuickBooks):", "Checking");
-        if(!bankName) return;
-        let iif = `!TRNS\tTRNSID\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tDOCNUM\tMEMO\n!SPL\tSPLID\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tDOCNUM\tMEMO\n!ENDTRNS\n`;
-        State.data.filter(d => d.type === 'transaction').forEach(tx => {
-            const date = new Date(tx.date).toLocaleDateString('en-US', {month: '2-digit', day: '2-digit', year: 'numeric'});
-            const type = tx.amount < 0 ? 'EXPENSE' : 'DEPOSIT';
-            iif += `TRNS\t\t${type}\t${date}\t${bankName}\t\t${tx.amount.toFixed(2)}\t\t${(tx.description+' '+tx.job).trim()}\n`;
-            iif += `SPL\t\t${type}\t${date}\t${tx.category}\t\t${(-tx.amount).toFixed(2)}\t\t${(tx.description+' '+tx.job).trim()}\n`;
-            iif += `ENDTRNS\n`;
-        });
-        const blob = new Blob([iif], { type: 'text/plain' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = 'quickbooks_import.iif'; a.click();
-    }
+    exportToIIF: () => { const bankName = prompt("Bank Account Name:", "Checking"); if(!bankName) return; let iif = `!TRNS\tTRNSID\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tDOCNUM\tMEMO\n!SPL\tSPLID\tTRNSTYPE\tDATE\tACCNT\tNAME\tAMOUNT\tDOCNUM\tMEMO\n!ENDTRNS\n`; State.data.filter(d => d.type === 'transaction').forEach(tx => { const date = new Date(tx.date).toLocaleDateString('en-US', {month: '2-digit', day: '2-digit', year: 'numeric'}); const type = tx.amount < 0 ? 'EXPENSE' : 'DEPOSIT'; iif += `TRNS\t\t${type}\t${date}\t${bankName}\t\t${tx.amount.toFixed(2)}\t\t${(tx.description+' '+tx.job).trim()}\n`; iif += `SPL\t\t${type}\t${date}\t${tx.category}\t\t${(-tx.amount).toFixed(2)}\t\t${(tx.description+' '+tx.job).trim()}\n`; iif += `ENDTRNS\n`; }); const blob = new Blob([iif], { type: 'text/plain' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = 'quickbooks.iif'; a.click(); }
 };
