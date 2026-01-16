@@ -172,10 +172,17 @@
             <!-- Other Views -->
             <div id="view-jobs" class="hidden fade-enter"><div id="jobs-container" class="bg-white rounded-xl shadow-sm border overflow-hidden"></div></div>
             
-            <!-- AR View -->
+            <!-- AR View (Updated) -->
             <div id="view-ar" class="hidden fade-enter">
-                <div class="mb-4 flex justify-between">
-                    <button onclick="App.handlers.openApArModal('ar')" class="bg-brand-600 text-white px-4 py-2 rounded shadow-sm hover:bg-brand-700 text-sm">Add Invoice</button>
+                <div class="mb-4 flex flex-wrap gap-2 justify-between">
+                    <div class="flex gap-2">
+                        <button onclick="App.handlers.openApArModal('ar')" class="bg-brand-600 text-white px-4 py-2 rounded shadow-sm hover:bg-brand-700 text-sm font-medium">Add Invoice</button>
+                        <!-- NEW IMPORT BUTTON -->
+                        <button onclick="document.getElementById('invoice-csv-file').click()" class="bg-slate-800 text-white px-4 py-2 rounded shadow-sm hover:bg-slate-900 text-sm font-medium flex items-center gap-2">
+                            <i data-lucide="upload" class="w-4 h-4"></i> Import CSV
+                        </button>
+                        <input type="file" id="invoice-csv-file" class="hidden" accept=".csv">
+                    </div>
                     <input type="text" id="ar-search" placeholder="Search Invoices..." class="border border-slate-300 p-2 rounded-lg w-64 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
                 </div>
                 <div id="ar-container" class="bg-white rounded-xl shadow-sm border overflow-hidden"></div>
@@ -276,3 +283,4 @@
     <script type="module" src="./js/app.js"></script>
 </body>
 </html>
+
