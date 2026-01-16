@@ -4,7 +4,7 @@ import { Utils } from './utils.js';
 import { db, doc, setDoc, getDoc } from './firebase.js';
 
 export const Handlers = {
-    // --- IMPORT CSV ---
+    // --- IMPORT CSV (Transactions) ---
     importCSV: (file) => {
         Papa.parse(file, {
             header: true, skipEmptyLines: true,
@@ -78,6 +78,75 @@ export const Handlers = {
                      } else {
                          UI.showToast("Could not parse rows.", "error");
                      }
+                }
+            }
+        });
+    },
+
+    // --- IMPORT INVOICES (A/R) ---
+    importInvoices: (file) => {
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                const rawRows = results.data;
+                const headers = results.meta.fields || [];
+
+                // Smart Column Detection
+                const findCol = (patterns) => headers.find(h => patterns.some(p => h.toLowerCase().includes(p)));
+                
+                const dateKey = findCol(['date', 'invdate']) || 'Date';
+                const partyKey = findCol(['customer', 'client', 'bill to', 'name']) || 'Customer';
+                const numKey = findCol(['invoice #', 'inv #', 'number', 'num', 'no.']) || 'Invoice #';
+                const amtKey = findCol(['amount', 'total', 'balance', 'grand total']) || 'Amount';
+
+                // Deduplication Set (Invoice Numbers)
+                const existingInvoices = new Set(State.data
+                    .filter(d => d.type === 'ar')
+                    .map(i => i.number ? i.number.toString().toLowerCase() : '')
+                );
+
+                const parseRow = (row) => {
+                     const dateStr = row[dateKey];
+                     const party = (row[partyKey] || 'Unknown').trim();
+                     const number = (row[numKey] || '').toString().trim();
+                     
+                     // Clean Currency
+                     const cleanNum = (val) => parseFloat((val || "0").toString().replace(/[^0-9.-]/g, ''));
+                     const amt = cleanNum(row[amtKey]);
+                     
+                     if(!dateStr || isNaN(amt)) return null;
+
+                     let cleanDate;
+                     try {
+                        const d = new Date(dateStr);
+                        if(isNaN(d.getTime())) throw new Error("Invalid");
+                        cleanDate = d.toLocaleDateString('en-CA');
+                     } catch(e) { return null; }
+
+                     // Skip if Invoice Number already exists
+                     if (number && existingInvoices.has(number.toLowerCase())) return null;
+
+                     return { 
+                         id: Utils.generateId('ar'), 
+                         type: 'ar', 
+                         date: cleanDate, 
+                         party: party,
+                         number: number || 'N/A',
+                         amount: amt, 
+                         status: 'unpaid' 
+                     };
+                };
+
+                const newInvoices = rawRows.map(parseRow).filter(Boolean);
+                
+                if (newInvoices.length > 0) {
+                    State.data = [...State.data, ...newInvoices];
+                    Handlers.refreshAll();
+                    UI.showToast(`Success! Imported ${newInvoices.length} invoices.`);
+                    Handlers.saveSession();
+                } else {
+                    UI.showToast("No new invoices found (duplicates skipped or bad format).", "error");
                 }
             }
         });
