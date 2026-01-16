@@ -4,12 +4,25 @@ import { Utils } from './utils.js';
 import { db, doc, setDoc, getDoc } from './firebase.js';
 
 export const Handlers = {
-    // --- IMPORT ---
+    // --- TRANSACTION IMPORT ---
     importCSV: (file) => {
         Papa.parse(file, {
-            header: true, skipEmptyLines: true,
+            header: true, 
+            skipEmptyLines: true,
             complete: (results) => {
                 const rawRows = results.data;
+                const headers = results.meta.fields || [];
+
+                // Smart Column Detection
+                const findCol = (patterns) => headers.find(h => patterns.some(p => h.toLowerCase().includes(p)));
+                
+                const dateKey = findCol(['date', 'time']) || 'Date';
+                const descKey = findCol(['desc', 'memo', 'payee', 'name', 'merchant', 'details']) || 'Description';
+                const amtKey = findCol(['amount', 'total', 'net']) || 'Amount';
+                const debitKey = findCol(['debit', 'withdrawal', 'fee']);
+                const creditKey = findCol(['credit', 'deposit']);
+
+                // Frequency Map
                 const existingCounts = {};
                 State.data.forEach(tx => {
                     if(tx.type === 'transaction') {
@@ -19,29 +32,43 @@ export const Handlers = {
                 });
 
                 const parseRow = (row) => {
-                     const dateStr = row['Date'] || row['date'] || row['TransDate'];
-                     const desc = (row['Description'] || row['Memo'] || row['description'] || 'No Desc').trim();
-                     let amt = parseFloat(row['Amount'] || row['amount'] || row['Grand Total']);
+                     const dateStr = row[dateKey];
+                     const desc = (row[descKey] || 'No Description').trim();
+                     const cleanNum = (val) => parseFloat((val || "0").toString().replace(/[^0-9.-]/g, '')); // Strip $ and ,
+
+                     let amt = cleanNum(row[amtKey]);
                      
-                     if(isNaN(amt)) {
-                         const debit = parseFloat(row['Debit']);
-                         const credit = parseFloat(row['Credit']);
-                         if(!isNaN(debit) && debit !== 0) amt = -debit;
-                         if(!isNaN(credit) && credit !== 0) amt = credit;
+                     if (amt === 0 && (debitKey || creditKey)) {
+                         const debit = cleanNum(row[debitKey]);
+                         const credit = cleanNum(row[creditKey]);
+                         if (debit !== 0) amt = -Math.abs(debit);
+                         else if (credit !== 0) amt = Math.abs(credit);
                      }
                      
-                     if(!dateStr || isNaN(amt)) return null;
+                     if(!dateStr || isNaN(amt) || amt === 0) return null;
 
                      let cleanDate;
-                     try { cleanDate = new Date(dateStr).toLocaleDateString('en-CA'); } catch(e) { return null; }
-                     if (cleanDate === 'Invalid Date') return null;
+                     try {
+                        const d = new Date(dateStr);
+                        if(isNaN(d.getTime())) throw new Error("Invalid");
+                        cleanDate = d.toLocaleDateString('en-CA'); 
+                     } catch(e) { return null; }
 
                      let category = 'Uncategorized';
                      for(const rule of State.rules) {
                          if(desc.toLowerCase().includes(rule.keyword.toLowerCase())) { category = rule.category; break; }
                      }
 
-                     return { id: Utils.generateId('tx'), type: 'transaction', date: cleanDate, description: desc, amount: amt, category: category, reconciled: false, job: '' };
+                     return { 
+                         id: Utils.generateId('tx'), 
+                         type: 'transaction', 
+                         date: cleanDate, 
+                         description: desc, 
+                         amount: amt, 
+                         category: category, 
+                         reconciled: false, 
+                         job: '' 
+                     };
                 };
 
                 const newTxs = rawRows.map(row => {
@@ -58,7 +85,7 @@ export const Handlers = {
                 if (newTxs.length > 0) {
                     State.data = [...State.data, ...newTxs];
                     Handlers.refreshAll();
-                    UI.showToast(`Success! Imported ${newTxs.length} new transactions.`);
+                    UI.showToast(`Success! Imported ${newTxs.length} transactions.`);
                     Handlers.saveSession();
                 } else {
                      const forceTxs = rawRows.map(parseRow).filter(Boolean);
@@ -68,13 +95,83 @@ export const Handlers = {
                          UI.showToast(`Imported ${forceTxs.length} transactions (Forced).`);
                          Handlers.saveSession();
                      } else {
-                         UI.showToast("Could not parse any rows.", "error");
+                         UI.showToast("Could not parse rows. Check CSV format.", "error");
                      }
                 }
             }
         });
     },
 
+    // --- NEW: INVOICE IMPORT ---
+    importInvoices: (file) => {
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                const rawRows = results.data;
+                const headers = results.meta.fields || [];
+
+                // Smart Column Detection for Invoices
+                const findCol = (patterns) => headers.find(h => patterns.some(p => h.toLowerCase().includes(p)));
+                
+                const dateKey = findCol(['date', 'invdate']) || 'Date';
+                const partyKey = findCol(['customer', 'client', 'bill to', 'name']) || 'Customer';
+                const numKey = findCol(['invoice #', 'inv #', 'number', 'num', 'no.']) || 'Invoice #';
+                const amtKey = findCol(['amount', 'total', 'balance', 'grand total']) || 'Amount';
+
+                // Set of existing Invoice Numbers to prevent duplicates
+                const existingInvoices = new Set(State.data
+                    .filter(d => d.type === 'ar')
+                    .map(i => i.number ? i.number.toLowerCase() : '')
+                );
+
+                const parseRow = (row) => {
+                     const dateStr = row[dateKey];
+                     const party = (row[partyKey] || 'Unknown').trim();
+                     const number = (row[numKey] || '').trim();
+                     
+                     // Clean Currency
+                     const cleanNum = (val) => parseFloat((val || "0").toString().replace(/[^0-9.-]/g, ''));
+                     const amt = cleanNum(row[amtKey]);
+                     
+                     if(!dateStr || isNaN(amt)) return null;
+
+                     let cleanDate;
+                     try {
+                        const d = new Date(dateStr);
+                        if(isNaN(d.getTime())) throw new Error("Invalid");
+                        cleanDate = d.toLocaleDateString('en-CA');
+                     } catch(e) { return null; }
+
+                     // Skip if Invoice Number already exists
+                     if (number && existingInvoices.has(number.toLowerCase())) return null;
+
+                     return { 
+                         id: Utils.generateId('ar'), 
+                         type: 'ar', 
+                         date: cleanDate, 
+                         party: party,
+                         number: number || 'N/A',
+                         amount: amt, 
+                         status: 'unpaid' 
+                     };
+                };
+
+                const newInvoices = rawRows.map(parseRow).filter(Boolean);
+                
+                if (newInvoices.length > 0) {
+                    State.data = [...State.data, ...newInvoices];
+                    Handlers.refreshAll();
+                    UI.showToast(`Success! Imported ${newInvoices.length} invoices.`);
+                    Handlers.saveSession();
+                } else {
+                    UI.showToast("No new invoices found (duplicates skipped or bad format).", "error");
+                }
+            }
+        });
+    },
+
+    // --- SAVING & LOADING ---
     saveSession: async () => {
         const payload = {
             data: JSON.stringify(State.data),
@@ -122,9 +219,13 @@ export const Handlers = {
         UI.renderCategoryManagementList();
     },
 
-    refreshAll: () => { UI.renderDateFilters(); UI.updateDashboard(); if(State.currentView !== 'dashboard') UI.switchTab(State.currentView); },
+    refreshAll: () => { 
+        UI.renderDateFilters(); 
+        UI.updateDashboard(); 
+        if(State.currentView !== 'dashboard') UI.switchTab(State.currentView); 
+    },
 
-    // --- TRANSACTIONS ---
+    // --- EDITING ---
     editTransaction: (id) => {
         const tx = State.data.find(d => d.id === id);
         if(!tx) return;
@@ -166,7 +267,6 @@ export const Handlers = {
 
     toggleReconcile: (id) => { const tx = State.data.find(d => d.id === id); if(tx) { tx.reconciled = !tx.reconciled; Handlers.saveSession(); } },
     
-    // NEW: Toggle All Visible
     toggleAllRec: (checked) => {
         const search = document.getElementById('tx-search').value.toLowerCase();
         const visibleTxs = UI.getFilteredData().filter(d => d.type === 'transaction' && (!search || d.description.toLowerCase().includes(search) || d.category.toLowerCase().includes(search)));
@@ -175,7 +275,7 @@ export const Handlers = {
         Handlers.saveSession();
     },
 
-    // --- RULES & CATS ---
+    // --- RULES/CATS ---
     addRule: () => {
         const key = document.getElementById('rule-keyword').value.trim();
         const cat = document.getElementById('rule-category').value;
@@ -185,7 +285,7 @@ export const Handlers = {
     addCategory: () => { const name = document.getElementById('new-cat-name').value.trim(); if(name && !State.categories.includes(name)) { State.categories.push(name); State.categories.sort(); UI.populateRuleCategories(); UI.renderCategoryManagementList(); document.getElementById('new-cat-name').value = ''; Handlers.saveSession(); UI.showToast('Category Added'); } },
     deleteCategory: (name) => { if(name === 'Uncategorized') return; State.categories = State.categories.filter(c => c !== name); State.data.forEach(t => { if(t.category === name) t.category = 'Uncategorized'; }); UI.populateRuleCategories(); UI.renderCategoryManagementList(); Handlers.refreshAll(); Handlers.saveSession(); },
 
-    // --- AP/AR ---
+    // --- AP/AR MODALS ---
     openApArModal: (type) => {
         document.getElementById('ap-ar-id').value = '';
         document.getElementById('ap-ar-type').value = type;
