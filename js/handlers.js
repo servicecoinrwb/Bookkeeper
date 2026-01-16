@@ -4,14 +4,23 @@ import { Utils } from './utils.js';
 import { db, doc, setDoc, getDoc, collection, getDocs, writeBatch, deleteDoc } from './firebase.js';
 
 export const Handlers = {
-    // --- IMPORT CSV ---
-    importCSV: (file) => {
+    // --- IMPORT TRANSACTIONS (CSV) ---
+    importCSV: async (file) => {
         Papa.parse(file, {
             header: true, skipEmptyLines: true,
-            complete: (results) => {
+            complete: async (results) => {
                 const rawRows = results.data;
+                const headers = results.meta.fields || [];
+
+                // Smart Column Detection
+                const findCol = (patterns) => headers.find(h => patterns.some(p => h.toLowerCase().includes(p)));
+                const dateKey = findCol(['date', 'time']) || 'Date';
+                const descKey = findCol(['desc', 'memo', 'payee', 'name']) || 'Description';
+                const amtKey = findCol(['amount', 'total', 'net']) || 'Amount';
+                const debitKey = findCol(['debit', 'withdrawal']);
+                const creditKey = findCol(['credit', 'deposit']);
+
                 const existingCounts = {};
-                
                 State.data.forEach(tx => {
                     if(tx.type === 'transaction') {
                         const key = `${tx.date}-${tx.description.trim()}-${tx.amount}`;
@@ -20,22 +29,19 @@ export const Handlers = {
                 });
 
                 const parseRow = (row) => {
-                     // Smart Column Matching
-                     const headers = Object.keys(row);
-                     const find = (arr) => headers.find(h => arr.some(x => h.toLowerCase().includes(x)));
-                     
-                     const dateStr = row[find(['date','transdate']) || 'Date'];
-                     const desc = (row[find(['desc','memo','payee']) || 'Description'] || 'No Desc').trim();
-                     let amt = parseFloat((row[find(['amount','total']) || 'Amount'] || "0").toString().replace(/[^0-9.-]/g, ''));
-                     
-                     if(isNaN(amt)) {
-                         const debit = parseFloat((row['Debit']||"0").toString().replace(/[^0-9.-]/g, ''));
-                         const credit = parseFloat((row['Credit']||"0").toString().replace(/[^0-9.-]/g, ''));
-                         if(debit !== 0) amt = -Math.abs(debit);
-                         else if(credit !== 0) amt = Math.abs(credit);
+                     const dateStr = row[dateKey];
+                     const desc = (row[descKey] || 'No Description').trim();
+                     const cleanNum = (val) => parseFloat((val || "0").toString().replace(/[^0-9.-]/g, ''));
+
+                     let amt = cleanNum(row[amtKey]);
+                     if (amt === 0 && (debitKey || creditKey)) {
+                         const debit = cleanNum(row[debitKey]);
+                         const credit = cleanNum(row[creditKey]);
+                         if (debit !== 0) amt = -Math.abs(debit);
+                         else if (credit !== 0) amt = Math.abs(credit);
                      }
                      
-                     if(!dateStr || isNaN(amt) || amt === 0) return null;
+                     if(!dateStr || isNaN(amt)) return null;
 
                      let cleanDate;
                      try { cleanDate = new Date(dateStr).toLocaleDateString('en-CA'); } catch(e) { return null; }
@@ -69,42 +75,52 @@ export const Handlers = {
                      return tx;
                 }).filter(Boolean);
                 
-                if (newTxs.length > 0) {
-                    State.data = [...State.data, ...newTxs];
-                    Handlers.refreshAll();
-                    UI.showToast(`Success! Imported ${newTxs.length} new transactions.`);
-                    Handlers.batchSaveTransactions(newTxs); // Save only new items to cloud
-                } else {
+                // FORCE IMPORT Logic
+                let finalTxs = newTxs;
+                if (newTxs.length === 0) {
                      const forceTxs = rawRows.map(parseRow).filter(Boolean);
                      if (forceTxs.length > 0) {
-                         State.data = [...State.data, ...forceTxs];
-                         Handlers.refreshAll();
-                         UI.showToast(`Forced Import: ${forceTxs.length} items.`);
-                         Handlers.batchSaveTransactions(forceTxs);
+                         finalTxs = forceTxs;
+                         UI.showToast(`Imported ${forceTxs.length} transactions (Forced).`);
                      } else {
                          UI.showToast("Could not parse rows.", "error");
+                         return;
                      }
+                } else {
+                    UI.showToast(`Success! Imported ${newTxs.length} new transactions.`);
                 }
+
+                State.data = [...State.data, ...finalTxs];
+                Handlers.refreshAll();
+
+                // SAVE TO CLOUD (BATCHED)
+                if(State.user) await Handlers.batchSaveTransactions(finalTxs);
+                else Handlers.saveSessionLocally();
             }
         });
     },
 
-    // --- IMPORT INVOICES ---
-    importInvoices: (file) => {
+    // --- IMPORT INVOICES (Restored!) ---
+    importInvoices: async (file) => {
         Papa.parse(file, {
             header: true, skipEmptyLines: true,
-            complete: (results) => {
+            complete: async (results) => {
                 const rawRows = results.data;
+                const headers = results.meta.fields || [];
+                const findCol = (patterns) => headers.find(h => patterns.some(p => h.toLowerCase().includes(p)));
+                
+                const dateKey = findCol(['date', 'invdate']) || 'Date';
+                const partyKey = findCol(['customer', 'client', 'bill to']) || 'Customer';
+                const numKey = findCol(['invoice #', 'inv #', 'number']) || 'Invoice #';
+                const amtKey = findCol(['amount', 'total', 'balance']) || 'Amount';
+
                 const existingInvoices = new Set(State.data.filter(d => d.type === 'ar').map(i => i.number ? i.number.toString().toLowerCase() : ''));
 
                 const newInvoices = rawRows.map(row => {
-                     const headers = Object.keys(row);
-                     const find = (arr) => headers.find(h => arr.some(x => h.toLowerCase().includes(x)));
-
-                     const dateStr = row[find(['date','invdate']) || 'Date'];
-                     const party = (row[find(['customer','client']) || 'Customer'] || 'Unknown').trim();
-                     const number = (row[find(['invoice','num']) || 'Invoice #'] || '').toString().trim();
-                     const amt = parseFloat((row[find(['amount','total']) || 'Amount'] || "0").toString().replace(/[^0-9.-]/g, ''));
+                     const dateStr = row[dateKey];
+                     const party = (row[partyKey] || 'Unknown').trim();
+                     const number = (row[numKey] || '').toString().trim();
+                     const amt = parseFloat((row[amtKey] || "0").toString().replace(/[^0-9.-]/g, ''));
                      
                      if(!dateStr || isNaN(amt)) return null;
                      if (number && existingInvoices.has(number.toLowerCase())) return null;
@@ -119,7 +135,8 @@ export const Handlers = {
                     State.data = [...State.data, ...newInvoices];
                     Handlers.refreshAll();
                     UI.showToast(`Success! Imported ${newInvoices.length} invoices.`);
-                    Handlers.batchSaveTransactions(newInvoices);
+                    if(State.user) await Handlers.batchSaveTransactions(newInvoices);
+                    else Handlers.saveSessionLocally();
                 } else {
                     UI.showToast("No new invoices found.", "error");
                 }
@@ -127,33 +144,23 @@ export const Handlers = {
         });
     },
 
-    // --- BATCH SAVE (New Cloud Storage) ---
+    // --- BATCH SAVE HELPER ---
     batchSaveTransactions: async (items) => {
-        if (!State.user) {
-            Handlers.saveSessionLocally();
-            return;
+        if (!State.user) return;
+        const batchSize = 500;
+        for (let i = 0; i < items.length; i += batchSize) {
+            const chunk = items.slice(i, i + batchSize);
+            const batch = writeBatch(db);
+            chunk.forEach(item => {
+                const ref = doc(db, 'users', State.user.uid, 'transactions', item.id);
+                batch.set(ref, item);
+            });
+            await batch.commit();
         }
-        
-        try {
-            const batchSize = 400; // Safe batch size
-            for (let i = 0; i < items.length; i += batchSize) {
-                const chunk = items.slice(i, i + batchSize);
-                const batch = writeBatch(db);
-                chunk.forEach(item => {
-                    // Save to sub-collection 'transactions'
-                    const ref = doc(db, 'users', State.user.uid, 'transactions', item.id);
-                    batch.set(ref, item);
-                });
-                await batch.commit();
-            }
-            console.log(`Saved ${items.length} items to cloud.`);
-        } catch (e) {
-            console.error("Batch Save Error:", e);
-            UI.showToast("Cloud Save Failed: Check Permissions", "error");
-        }
+        console.log(`Saved ${items.length} items to subcollection.`);
     },
 
-    // --- SAVE METADATA (Rules/Cats) ---
+    // --- SAVE SESSION (Metadata only) ---
     saveSession: async () => {
         if (State.user) {
             try {
@@ -164,14 +171,11 @@ export const Handlers = {
                     rules: JSON.stringify(State.rules),
                     categories: JSON.stringify(State.categories),
                     lastUpdated: new Date()
-                }, { merge: true }); // Merge preserves subcollections
+                }, { merge: true });
                 
                 if(statusEl) statusEl.classList.add('hidden');
                 UI.showToast("Settings Saved");
-            } catch (e) { 
-                console.error("Meta Save Error:", e);
-                UI.showToast("Settings Save Failed", "error"); 
-            }
+            } catch (e) { console.error(e); UI.showToast(`Save Failed: ${e.message}`, "error"); }
         } else {
             Handlers.saveSessionLocally();
         }
@@ -184,7 +188,7 @@ export const Handlers = {
         UI.showToast("Saved Locally");
     },
 
-    // --- LOAD WITH FALLBACK ---
+    // --- LOAD SESSION ---
     loadSession: async () => {
         if(State.user) {
             try {
@@ -196,34 +200,24 @@ export const Handlers = {
                     if(d.rules) State.rules = JSON.parse(d.rules);
                     if(d.categories) State.categories = JSON.parse(d.categories);
                     
-                    // MIGRATION Logic
-                    if (d.data && d.data.length > 20) { // If 'data' string exists and is not empty '[]'
-                        console.log("Attempting migration...");
+                    // Legacy Migration Check
+                    if (d.data && d.data.length > 20) {
+                        console.log("Migrating legacy data...");
                         try {
                             const oldData = JSON.parse(d.data);
-                            State.data = oldData; // Load into memory immediately so user sees data
+                            State.data = oldData;
                             Handlers.refreshAll();
-                            
-                            // Try to migrate to subcollection
                             await Handlers.batchSaveTransactions(oldData);
-                            await setDoc(userDocRef, { data: null }, { merge: true }); // Clear old blob
+                            await setDoc(userDocRef, { data: null }, { merge: true });
                             UI.showToast("Migration Complete");
-                        } catch (migrationErr) {
-                            console.error("Migration blocked:", migrationErr);
-                            UI.showToast("Notice: Update Firestore Rules", "error");
-                        }
+                        } catch (err) { console.error(err); }
                     } else {
-                        // Load from new Subcollection
-                        try {
-                            const q = collection(db, 'users', State.user.uid, 'transactions');
-                            const querySnapshot = await getDocs(q);
-                            const txs = [];
-                            querySnapshot.forEach((doc) => txs.push(doc.data()));
-                            State.data = txs;
-                        } catch (subErr) {
-                            console.error("Subcollection read failed:", subErr);
-                             // If read fails, State.data remains empty or falls back
-                        }
+                        // Load Subcollection
+                        const q = collection(db, 'users', State.user.uid, 'transactions');
+                        const querySnapshot = await getDocs(q);
+                        const txs = [];
+                        querySnapshot.forEach((doc) => txs.push(doc.data()));
+                        State.data = txs;
                     }
                 }
             } catch(e) { console.error("Load Error:", e); }
@@ -247,26 +241,22 @@ export const Handlers = {
         if(State.currentView !== 'dashboard') UI.switchTab(State.currentView); 
     },
 
-    // --- INDIVIDUAL UPDATES ---
+    // --- UPDATE HELPERS ---
     updateSingleItem: async (item) => {
-        // Update in memory
         const idx = State.data.findIndex(d => d.id === item.id);
         if(idx > -1) State.data[idx] = item;
         
-        // Save
         if(State.user) {
             try {
                 const ref = doc(db, 'users', State.user.uid, 'transactions', item.id);
                 await setDoc(ref, item); 
-            } catch(e) { 
-                console.error("Update failed", e); 
-                UI.showToast("Sync Error: Check Rules", "error");
-            }
+            } catch(e) { console.error(e); UI.showToast("Sync Error", "error"); }
         } else {
             Handlers.saveSessionLocally();
         }
     },
 
+    // --- ACTIONS ---
     saveTransactionEdit: () => {
         const id = document.getElementById('modal-tx-id').value;
         const tx = State.data.find(d => d.id === id);
@@ -274,7 +264,6 @@ export const Handlers = {
             const oldCat = tx.category;
             const newCat = document.getElementById('modal-category').value;
             
-            // Create updated object
             const updatedTx = {
                 ...tx,
                 category: newCat,
@@ -285,7 +274,7 @@ export const Handlers = {
             if(newCat && !State.categories.includes(newCat)) State.categories.push(newCat);
             UI.closeModal('edit-modal');
             
-            // Handle Batch
+            // Batch Logic
             if (oldCat !== newCat) {
                 const similar = State.data.filter(t => t.type === 'transaction' && t.id !== id && t.description.toLowerCase().includes(tx.description.split(' ')[0].toLowerCase()));
                 if(similar.length > 0) {
@@ -312,35 +301,23 @@ export const Handlers = {
 
     toggleReconcile: (id) => { 
         const tx = State.data.find(d => d.id === id); 
-        if(tx) { 
-            tx.reconciled = !tx.reconciled; 
-            Handlers.updateSingleItem(tx); 
-            Handlers.refreshAll(); 
-        } 
+        if(tx) { tx.reconciled = !tx.reconciled; Handlers.updateSingleItem(tx); Handlers.refreshAll(); } 
     },
     
     toggleAllRec: async (checked) => {
         const search = document.getElementById('tx-search').value.toLowerCase();
         const visibleTxs = UI.getFilteredData().filter(d => d.type === 'transaction' && (!search || d.description.toLowerCase().includes(search) || d.category.toLowerCase().includes(search)));
-        
         visibleTxs.forEach(tx => tx.reconciled = checked);
         UI.renderTransactions();
-        
         if(State.user) await Handlers.batchSaveTransactions(visibleTxs);
         else Handlers.saveSessionLocally();
     },
 
-    // --- RULES / CATS / OTHER ---
+    // --- SETTINGS ---
     addRule: () => {
         const key = document.getElementById('rule-keyword').value.trim();
         const cat = document.getElementById('rule-category').value;
-        if(key && cat) {
-            State.rules.push({ keyword: key, category: cat });
-            UI.renderRulesList();
-            document.getElementById('rule-keyword').value = '';
-            Handlers.saveSession(); // Saves meta
-            UI.showToast('Rule Added');
-        }
+        if(key && cat) { State.rules.push({ keyword: key, category: cat }); UI.renderRulesList(); document.getElementById('rule-keyword').value = ''; Handlers.saveSession(); UI.showToast('Rule Added'); }
     },
     deleteRule: (index) => { State.rules.splice(index, 1); UI.renderRulesList(); Handlers.saveSession(); },
     
@@ -356,18 +333,11 @@ export const Handlers = {
             UI.showToast('Category Added');
         }
     },
-    
     deleteCategory: (name) => {
         if(name === 'Uncategorized') return;
         State.categories = State.categories.filter(c => c !== name);
         const affected = [];
-        State.data.forEach(t => { 
-            if(t.category === name) {
-                t.category = 'Uncategorized';
-                affected.push(t);
-            }
-        });
-        
+        State.data.forEach(t => { if(t.category === name) { t.category = 'Uncategorized'; affected.push(t); } });
         UI.populateRuleCategories();
         UI.renderCategoryManagementList();
         Handlers.refreshAll();
@@ -375,6 +345,7 @@ export const Handlers = {
         if(State.user && affected.length > 0) Handlers.batchSaveTransactions(affected);
     },
 
+    // --- AP/AR ---
     openApArModal: (type) => {
         document.getElementById('ap-ar-id').value = '';
         document.getElementById('ap-ar-type').value = type;
@@ -386,7 +357,6 @@ export const Handlers = {
         document.getElementById('ap-ar-party').value = '';
         UI.openModal('ap-ar-modal');
     },
-
     saveApAr: () => {
         const type = document.getElementById('ap-ar-type').value;
         const item = {
@@ -404,38 +374,23 @@ export const Handlers = {
         Handlers.refreshAll();
         UI.showToast(type === 'ar' ? "Invoice Added" : "Bill Added");
     },
-
-    toggleApArStatus: (id) => {
-        const item = State.data.find(d => d.id === id);
-        if(item) {
-            item.status = item.status === 'unpaid' ? 'paid' : 'unpaid';
-            Handlers.updateSingleItem(item);
-            Handlers.refreshAll();
-        }
-    },
+    toggleApArStatus: (id) => { const item = State.data.find(d => d.id === id); if(item) { item.status = item.status === 'unpaid' ? 'paid' : 'unpaid'; Handlers.updateSingleItem(item); Handlers.refreshAll(); } },
 
     clearData: async () => {
         if(confirm("Are you sure? This cannot be undone.")) {
             if(State.user) {
                 try {
-                    // Delete subcollection (in chunks)
                     const q = collection(db, 'users', State.user.uid, 'transactions');
                     const snapshot = await getDocs(q);
                     const batchSize = 400;
                     let batch = writeBatch(db);
                     let count = 0;
-                    
                     snapshot.forEach(doc => {
                         batch.delete(doc.ref);
                         count++;
-                        if (count >= batchSize) {
-                            batch.commit();
-                            batch = writeBatch(db);
-                            count = 0;
-                        }
+                        if (count >= batchSize) { batch.commit(); batch = writeBatch(db); count = 0; }
                     });
                     await batch.commit();
-                    
                     await setDoc(doc(db, 'users', State.user.uid), { data: null, rules: '[]', categories: '[]' });
                 } catch(e) { console.error("Clear failed", e); }
             }
