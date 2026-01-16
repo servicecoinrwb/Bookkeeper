@@ -1,18 +1,26 @@
 import { State } from './state.js';
 import { UI } from './ui.js';
 import { Utils } from './utils.js';
-import { db, doc, setDoc, getDoc } from './firebase.js';
+import { db, doc, setDoc, getDoc, collection, getDocs, writeBatch, deleteDoc } from './firebase.js';
 
 export const Handlers = {
-    // --- IMPORT CSV (Transactions) ---
-    importCSV: (file) => {
+    // --- IMPORT CSV ---
+    importCSV: async (file) => {
         Papa.parse(file, {
             header: true, skipEmptyLines: true,
-            complete: (results) => {
+            complete: async (results) => {
                 const rawRows = results.data;
+                const headers = results.meta.fields || [];
+
+                // Smart Column Detection
+                const findCol = (patterns) => headers.find(h => patterns.some(p => h.toLowerCase().includes(p)));
+                const dateKey = findCol(['date', 'time']) || 'Date';
+                const descKey = findCol(['desc', 'memo', 'payee', 'name']) || 'Description';
+                const amtKey = findCol(['amount', 'total', 'net']) || 'Amount';
+                const debitKey = findCol(['debit', 'withdrawal']);
+                const creditKey = findCol(['credit', 'deposit']);
+
                 const existingCounts = {};
-                
-                // Frequency Map
                 State.data.forEach(tx => {
                     if(tx.type === 'transaction') {
                         const key = `${tx.date}-${tx.description.trim()}-${tx.amount}`;
@@ -21,12 +29,17 @@ export const Handlers = {
                 });
 
                 const parseRow = (row) => {
-                     const dateStr = row['Date'] || row['date'] || row['TransDate'];
-                     const desc = (row['Description'] || row['Memo'] || row['description'] || 'No Desc').trim();
-                     let amt = parseFloat((row['Amount'] || row['amount'] || row['Grand Total'] || "0").toString().replace(/[^0-9.-]/g, ''));
-                     
-                     if(isNaN(amt) && row['Debit']) amt = -parseFloat(row['Debit'].replace(/[^0-9.-]/g, ''));
-                     if(isNaN(amt) && row['Credit']) amt = parseFloat(row['Credit'].replace(/[^0-9.-]/g, ''));
+                     const dateStr = row[dateKey];
+                     const desc = (row[descKey] || 'No Description').trim();
+                     const cleanNum = (val) => parseFloat((val || "0").toString().replace(/[^0-9.-]/g, ''));
+
+                     let amt = cleanNum(row[amtKey]);
+                     if (amt === 0 && (debitKey || creditKey)) {
+                         const debit = cleanNum(row[debitKey]);
+                         const credit = cleanNum(row[creditKey]);
+                         if (debit !== 0) amt = -Math.abs(debit);
+                         else if (credit !== 0) amt = Math.abs(credit);
+                     }
                      
                      if(!dateStr || isNaN(amt)) return null;
 
@@ -51,6 +64,7 @@ export const Handlers = {
                      };
                 };
 
+                // Deduplicate
                 const newTxs = rawRows.map(row => {
                      const tx = parseRow(row);
                      if (!tx) return null;
@@ -62,143 +76,155 @@ export const Handlers = {
                      return tx;
                 }).filter(Boolean);
                 
-                if (newTxs.length > 0) {
-                    State.data = [...State.data, ...newTxs];
-                    Handlers.refreshAll();
-                    UI.showToast(`Success! Imported ${newTxs.length} new transactions.`);
-                    Handlers.saveSession();
-                } else {
-                     // Auto-Force if duplicate logic is too strict
+                // FORCE IMPORT Logic
+                let finalTxs = newTxs;
+                if (newTxs.length === 0) {
                      const forceTxs = rawRows.map(parseRow).filter(Boolean);
                      if (forceTxs.length > 0) {
-                         State.data = [...State.data, ...forceTxs];
-                         Handlers.refreshAll();
+                         finalTxs = forceTxs;
                          UI.showToast(`Imported ${forceTxs.length} transactions (Forced).`);
-                         Handlers.saveSession();
                      } else {
                          UI.showToast("Could not parse rows.", "error");
+                         return;
                      }
+                } else {
+                    UI.showToast(`Success! Imported ${newTxs.length} new transactions.`);
+                }
+
+                // UPDATE STATE
+                State.data = [...State.data, ...finalTxs];
+                Handlers.refreshAll();
+
+                // SAVE TO CLOUD (BATCHED)
+                if(State.user) {
+                    await Handlers.batchSaveTransactions(finalTxs);
+                } else {
+                    Handlers.saveSessionLocally();
                 }
             }
         });
     },
 
-    // --- IMPORT INVOICES (A/R) ---
-    importInvoices: (file) => {
+    // --- INVOICE IMPORT ---
+    importInvoices: async (file) => {
         Papa.parse(file, {
-            header: true,
-            skipEmptyLines: true,
-            complete: (results) => {
+            header: true, skipEmptyLines: true,
+            complete: async (results) => {
                 const rawRows = results.data;
                 const headers = results.meta.fields || [];
-
-                // Smart Column Detection
                 const findCol = (patterns) => headers.find(h => patterns.some(p => h.toLowerCase().includes(p)));
                 
                 const dateKey = findCol(['date', 'invdate']) || 'Date';
-                const partyKey = findCol(['customer', 'client', 'bill to', 'name']) || 'Customer';
-                const numKey = findCol(['invoice #', 'inv #', 'number', 'num', 'no.']) || 'Invoice #';
-                const amtKey = findCol(['amount', 'total', 'balance', 'grand total']) || 'Amount';
+                const partyKey = findCol(['customer', 'client', 'bill to']) || 'Customer';
+                const numKey = findCol(['invoice #', 'inv #', 'number']) || 'Invoice #';
+                const amtKey = findCol(['amount', 'total', 'balance']) || 'Amount';
 
-                // Deduplication Set (Invoice Numbers)
-                const existingInvoices = new Set(State.data
-                    .filter(d => d.type === 'ar')
-                    .map(i => i.number ? i.number.toString().toLowerCase() : '')
-                );
+                const existingInvoices = new Set(State.data.filter(d => d.type === 'ar').map(i => i.number ? i.number.toString().toLowerCase() : ''));
 
-                const parseRow = (row) => {
+                const newInvoices = rawRows.map(row => {
                      const dateStr = row[dateKey];
                      const party = (row[partyKey] || 'Unknown').trim();
                      const number = (row[numKey] || '').toString().trim();
-                     
-                     // Clean Currency
-                     const cleanNum = (val) => parseFloat((val || "0").toString().replace(/[^0-9.-]/g, ''));
-                     const amt = cleanNum(row[amtKey]);
+                     const amt = parseFloat((row[amtKey] || "0").toString().replace(/[^0-9.-]/g, ''));
                      
                      if(!dateStr || isNaN(amt)) return null;
-
-                     let cleanDate;
-                     try {
-                        const d = new Date(dateStr);
-                        if(isNaN(d.getTime())) throw new Error("Invalid");
-                        cleanDate = d.toLocaleDateString('en-CA');
-                     } catch(e) { return null; }
-
-                     // Skip if Invoice Number already exists
                      if (number && existingInvoices.has(number.toLowerCase())) return null;
 
-                     return { 
-                         id: Utils.generateId('ar'), 
-                         type: 'ar', 
-                         date: cleanDate, 
-                         party: party,
-                         number: number || 'N/A',
-                         amount: amt, 
-                         status: 'unpaid' 
-                     };
-                };
+                     let cleanDate;
+                     try { cleanDate = new Date(dateStr).toLocaleDateString('en-CA'); } catch(e) { return null; }
 
-                const newInvoices = rawRows.map(parseRow).filter(Boolean);
+                     return { id: Utils.generateId('ar'), type: 'ar', date: cleanDate, party: party, number: number || 'N/A', amount: amt, status: 'unpaid' };
+                }).filter(Boolean);
                 
                 if (newInvoices.length > 0) {
                     State.data = [...State.data, ...newInvoices];
                     Handlers.refreshAll();
                     UI.showToast(`Success! Imported ${newInvoices.length} invoices.`);
-                    Handlers.saveSession();
+                    if(State.user) await Handlers.batchSaveTransactions(newInvoices);
+                    else Handlers.saveSessionLocally();
                 } else {
-                    UI.showToast("No new invoices found (duplicates skipped or bad format).", "error");
+                    UI.showToast("No new invoices found.", "error");
                 }
             }
         });
     },
 
+    // --- BATCH SAVE HELPER (Solves 1MB Limit) ---
+    batchSaveTransactions: async (items) => {
+        if (!State.user) return;
+        
+        // Write in batches of 500 (Firestore Limit)
+        const batchSize = 500;
+        for (let i = 0; i < items.length; i += batchSize) {
+            const chunk = items.slice(i, i + batchSize);
+            const batch = writeBatch(db);
+            chunk.forEach(item => {
+                const ref = doc(db, 'users', State.user.uid, 'transactions', item.id);
+                batch.set(ref, item);
+            });
+            await batch.commit();
+        }
+        console.log(`Saved ${items.length} items to subcollection.`);
+    },
+
     // --- SAVE / LOAD ---
     saveSession: async () => {
-        const payload = {
-            data: JSON.stringify(State.data),
-            rules: JSON.stringify(State.rules),
-            categories: JSON.stringify(State.categories),
-            lastUpdated: new Date()
-        };
-
+        // Only saves Metadata (Rules, Categories). Transactions are saved individually now.
         if (State.user) {
             try {
                 const statusEl = document.getElementById('cloud-status');
                 if(statusEl) statusEl.classList.remove('hidden');
                 
-                // Firestore Save
-                await setDoc(doc(db, 'users', State.user.uid), payload);
+                await setDoc(doc(db, 'users', State.user.uid), {
+                    rules: JSON.stringify(State.rules),
+                    categories: JSON.stringify(State.categories),
+                    lastUpdated: new Date()
+                }, { merge: true }); // Merge to not overwrite existing fields
                 
                 if(statusEl) statusEl.classList.add('hidden');
-                UI.showToast("Saved to Cloud");
+                UI.showToast("Settings Saved");
             } catch (e) { 
                 console.error("Save Error:", e);
-                // SHOW EXACT ERROR TO USER
                 UI.showToast(`Save Failed: ${e.message}`, "error"); 
             }
         } else {
-            // Local Save
-            try {
-                localStorage.setItem('bk_data', payload.data);
-                localStorage.setItem('bk_rules', payload.rules);
-                localStorage.setItem('bk_cats', payload.categories);
-                UI.showToast("Saved Locally");
-            } catch(e) {
-                console.error(e);
-                UI.showToast("Local Save Failed (Storage Full?)", "error");
-            }
+            Handlers.saveSessionLocally();
         }
+    },
+
+    saveSessionLocally: () => {
+        localStorage.setItem('bk_data', JSON.stringify(State.data));
+        localStorage.setItem('bk_rules', JSON.stringify(State.rules));
+        localStorage.setItem('bk_cats', JSON.stringify(State.categories));
+        UI.showToast("Saved Locally");
     },
 
     loadSession: async () => {
         if(State.user) {
             try {
-                const snap = await getDoc(doc(db, 'users', State.user.uid));
-                if(snap.exists()) {
-                    const d = snap.data();
-                    State.data = JSON.parse(d.data || '[]');
+                const userDocRef = doc(db, 'users', State.user.uid);
+                const userDoc = await getDoc(userDocRef);
+                
+                if(userDoc.exists()) {
+                    const d = userDoc.data();
                     if(d.rules) State.rules = JSON.parse(d.rules);
                     if(d.categories) State.categories = JSON.parse(d.categories);
+                    
+                    // MIGRATION CHECK: If old 'data' blob exists, migrate it
+                    if (d.data && d.data.length > 2) {
+                        console.log("Migrating legacy data...");
+                        const oldData = JSON.parse(d.data);
+                        await Handlers.batchSaveTransactions(oldData); // Move to subcollection
+                        await setDoc(userDocRef, { data: null }, { merge: true }); // Clear old blob
+                        State.data = oldData;
+                    } else {
+                        // Load from Subcollection
+                        const q = collection(db, 'users', State.user.uid, 'transactions');
+                        const querySnapshot = await getDocs(q);
+                        const txs = [];
+                        querySnapshot.forEach((doc) => txs.push(doc.data()));
+                        State.data = txs;
+                    }
                 }
             } catch(e) { console.error("Load Error:", e); }
         } else {
@@ -221,65 +247,16 @@ export const Handlers = {
         if(State.currentView !== 'dashboard') UI.switchTab(State.currentView); 
     },
 
-    // --- AP / AR (INVOICES & BILLS) ---
-    openApArModal: (type) => {
-        document.getElementById('ap-ar-id').value = '';
-        document.getElementById('ap-ar-type').value = type;
-        document.getElementById('ap-ar-title').textContent = type === 'ar' ? 'Add Invoice' : 'Add Bill';
-        document.getElementById('ap-ar-party-label').textContent = type === 'ar' ? 'Customer' : 'Vendor';
-        document.getElementById('ap-ar-date').value = new Date().toISOString().split('T')[0];
-        document.getElementById('ap-ar-amount').value = '';
-        document.getElementById('ap-ar-number').value = '';
-        document.getElementById('ap-ar-party').value = '';
-        UI.openModal('ap-ar-modal');
-    },
-
-    saveApAr: () => {
-        const type = document.getElementById('ap-ar-type').value;
-        const party = document.getElementById('ap-ar-party').value.trim();
-        const amount = parseFloat(document.getElementById('ap-ar-amount').value);
-        
-        if(!party || isNaN(amount)) {
-            UI.showToast("Please enter a Name and Amount", "error");
-            return;
+    // --- INDIVIDUAL UPDATES (Writes directly to DB) ---
+    updateSingleItem: async (item) => {
+        if(State.user) {
+            try {
+                const ref = doc(db, 'users', State.user.uid, 'transactions', item.id);
+                await setDoc(ref, item); 
+            } catch(e) { console.error("Update failed", e); }
+        } else {
+            Handlers.saveSessionLocally();
         }
-
-        const item = {
-            id: Utils.generateId(type),
-            type: type,
-            party: party,
-            number: document.getElementById('ap-ar-number').value.trim() || 'N/A',
-            date: document.getElementById('ap-ar-date').value,
-            amount: amount,
-            status: 'unpaid'
-        };
-        
-        State.data.push(item);
-        UI.closeModal('ap-ar-modal');
-        Handlers.refreshAll();
-        Handlers.saveSession();
-        UI.showToast(type === 'ar' ? "Invoice Added" : "Bill Added");
-    },
-
-    toggleApArStatus: (id) => {
-        const item = State.data.find(d => d.id === id);
-        if(item) {
-            item.status = item.status === 'unpaid' ? 'paid' : 'unpaid';
-            Handlers.refreshAll();
-            Handlers.saveSession();
-        }
-    },
-
-    // --- OTHER ---
-    editTransaction: (id) => {
-        const tx = State.data.find(d => d.id === id);
-        if(!tx) return;
-        document.getElementById('modal-tx-id').value = id;
-        document.getElementById('modal-category').value = tx.category;
-        document.getElementById('modal-job').value = tx.job || '';
-        document.getElementById('modal-notes').value = tx.notes || '';
-        UI.populateRuleCategories(); 
-        UI.openModal('edit-modal');
     },
 
     saveTransactionEdit: () => {
@@ -300,36 +277,163 @@ export const Handlers = {
                 if(similar.length > 0) {
                     const msgEl = document.getElementById('batch-msg');
                     if(msgEl) msgEl.textContent = `Update ${similar.length} other transactions like "${tx.description.split(' ')[0]}..." to "${newCat}"?`;
-                    document.getElementById('btn-batch-yes').onclick = () => { similar.forEach(t => t.category = newCat); UI.closeModal('batch-modal'); Handlers.refreshAll(); Handlers.saveSession(); };
+                    document.getElementById('btn-batch-yes').onclick = async () => { 
+                        similar.forEach(t => t.category = newCat); 
+                        // Batch update for similar items
+                        if(State.user) await Handlers.batchSaveTransactions(similar);
+                        else Handlers.saveSessionLocally();
+
+                        UI.closeModal('batch-modal'); 
+                        Handlers.refreshAll(); 
+                    };
                     document.getElementById('btn-batch-no').onclick = () => UI.closeModal('batch-modal');
                     UI.openModal('batch-modal');
                 }
             }
+
+            Handlers.updateSingleItem(tx);
             Handlers.refreshAll();
-            Handlers.saveSession();
             UI.showToast('Updated');
         }
     },
 
-    toggleReconcile: (id) => { const tx = State.data.find(d => d.id === id); if(tx) { tx.reconciled = !tx.reconciled; Handlers.saveSession(); } },
-    toggleAllRec: (checked) => {
+    toggleReconcile: (id) => { 
+        const tx = State.data.find(d => d.id === id); 
+        if(tx) { 
+            tx.reconciled = !tx.reconciled; 
+            Handlers.updateSingleItem(tx); 
+            Handlers.refreshAll(); // Refresh to update recon calc
+        } 
+    },
+    
+    toggleAllRec: async (checked) => {
         const search = document.getElementById('tx-search').value.toLowerCase();
         const visibleTxs = UI.getFilteredData().filter(d => d.type === 'transaction' && (!search || d.description.toLowerCase().includes(search) || d.category.toLowerCase().includes(search)));
+        
         visibleTxs.forEach(tx => tx.reconciled = checked);
         UI.renderTransactions();
-        Handlers.saveSession();
+        
+        if(State.user) await Handlers.batchSaveTransactions(visibleTxs);
+        else Handlers.saveSessionLocally();
     },
 
+    // --- OTHER ---
     addRule: () => {
         const key = document.getElementById('rule-keyword').value.trim();
         const cat = document.getElementById('rule-category').value;
-        if(key && cat) { State.rules.push({ keyword: key, category: cat }); UI.renderRulesList(); document.getElementById('rule-keyword').value = ''; Handlers.saveSession(); UI.showToast('Rule Added'); }
+        if(key && cat) {
+            State.rules.push({ keyword: key, category: cat });
+            UI.renderRulesList();
+            document.getElementById('rule-keyword').value = '';
+            Handlers.saveSession(); // Saves rules to main doc
+            UI.showToast('Rule Added');
+        }
     },
     deleteRule: (index) => { State.rules.splice(index, 1); UI.renderRulesList(); Handlers.saveSession(); },
-    addCategory: () => { const name = document.getElementById('new-cat-name').value.trim(); if(name && !State.categories.includes(name)) { State.categories.push(name); State.categories.sort(); UI.populateRuleCategories(); UI.renderCategoryManagementList(); document.getElementById('new-cat-name').value = ''; Handlers.saveSession(); UI.showToast('Category Added'); } },
-    deleteCategory: (name) => { if(name === 'Uncategorized') return; State.categories = State.categories.filter(c => c !== name); State.data.forEach(t => { if(t.category === name) t.category = 'Uncategorized'; }); UI.populateRuleCategories(); UI.renderCategoryManagementList(); Handlers.refreshAll(); Handlers.saveSession(); },
+
+    addCategory: () => {
+        const name = document.getElementById('new-cat-name').value.trim();
+        if(name && !State.categories.includes(name)) {
+            State.categories.push(name);
+            State.categories.sort();
+            UI.populateRuleCategories();
+            UI.renderCategoryManagementList();
+            document.getElementById('new-cat-name').value = '';
+            Handlers.saveSession(); // Saves cats to main doc
+            UI.showToast('Category Added');
+        }
+    },
+    deleteCategory: (name) => {
+        if(name === 'Uncategorized') return;
+        State.categories = State.categories.filter(c => c !== name);
+        const affected = [];
+        State.data.forEach(t => { 
+            if(t.category === name) {
+                t.category = 'Uncategorized';
+                affected.push(t);
+            }
+        });
+        
+        UI.populateRuleCategories();
+        UI.renderCategoryManagementList();
+        Handlers.refreshAll();
+        Handlers.saveSession(); // Save Cats
+        if(State.user && affected.length > 0) Handlers.batchSaveTransactions(affected); // Update txs
+    },
+
+    openApArModal: (type) => {
+        document.getElementById('ap-ar-id').value = '';
+        document.getElementById('ap-ar-type').value = type;
+        document.getElementById('ap-ar-title').textContent = type === 'ar' ? 'Add Invoice' : 'Add Bill';
+        document.getElementById('ap-ar-party-label').textContent = type === 'ar' ? 'Customer' : 'Vendor';
+        document.getElementById('ap-ar-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('ap-ar-amount').value = '';
+        document.getElementById('ap-ar-number').value = '';
+        document.getElementById('ap-ar-party').value = '';
+        UI.openModal('ap-ar-modal');
+    },
+
+    saveApAr: () => {
+        const type = document.getElementById('ap-ar-type').value;
+        const item = {
+            id: Utils.generateId(type),
+            type: type,
+            party: document.getElementById('ap-ar-party').value,
+            number: document.getElementById('ap-ar-number').value,
+            date: document.getElementById('ap-ar-date').value,
+            amount: parseFloat(document.getElementById('ap-ar-amount').value) || 0,
+            status: 'unpaid'
+        };
+        State.data.push(item);
+        UI.closeModal('ap-ar-modal');
+        Handlers.updateSingleItem(item);
+        Handlers.refreshAll();
+        UI.showToast(type === 'ar' ? "Invoice Added" : "Bill Added");
+    },
+
+    toggleApArStatus: (id) => {
+        const item = State.data.find(d => d.id === id);
+        if(item) {
+            item.status = item.status === 'unpaid' ? 'paid' : 'unpaid';
+            Handlers.updateSingleItem(item);
+            Handlers.refreshAll();
+        }
+    },
+
+    // CLEAR: Must delete subcollection docs
+    clearData: async () => {
+        if(confirm("Are you sure? This cannot be undone.")) {
+            if(State.user) {
+                // Delete cloud transactions (Chunked)
+                const q = collection(db, 'users', State.user.uid, 'transactions');
+                const snapshot = await getDocs(q);
+                const batchSize = 500;
+                let batch = writeBatch(db);
+                let count = 0;
+                
+                snapshot.forEach(doc => {
+                    batch.delete(doc.ref);
+                    count++;
+                    if (count >= batchSize) {
+                        batch.commit();
+                        batch = writeBatch(db);
+                        count = 0;
+                    }
+                });
+                await batch.commit(); // Commit remaining
+                
+                await setDoc(doc(db, 'users', State.user.uid), { data: null, rules: '[]', categories: '[]' });
+            }
+            
+            State.data = []; State.rules = [];
+            localStorage.removeItem('bk_data'); localStorage.removeItem('bk_rules'); localStorage.removeItem('bk_cats');
+            UI.closeModal('confirm-modal');
+            Handlers.refreshAll();
+            UI.showToast("All Data Cleared");
+        }
+    },
     
-    clearData: () => { if(confirm("Are you sure?")) { State.data = []; State.rules = []; localStorage.removeItem('bk_data'); localStorage.removeItem('bk_rules'); localStorage.removeItem('bk_cats'); if(State.user) setDoc(doc(db, 'users', State.user.uid), { data: '[]', rules: '[]', categories: '[]' }); UI.closeModal('confirm-modal'); Handlers.refreshAll(); UI.showToast("All Data Cleared"); } },
+    // KEEP EXPORT (Read-only)
     exportToIIF: () => {
         const bankName = prompt("Enter Bank Account Name (QuickBooks):", "Checking");
         if(!bankName) return;
