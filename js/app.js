@@ -14,39 +14,39 @@ document.addEventListener('DOMContentLoaded', () => {
         if (el) el.addEventListener(event, handler);
     };
 
-    // --- Inputs & Filters ---
+    // Filters & Inputs
     addListener('csv-file', 'change', (e) => Handlers.importCSV(e.target.files[0]));
     
-    // Filters
-    const updateFilter = (field, val) => {
-        State.filters[field] = val;
-        Handlers.refreshAll();
-        if(State.currentView === 'taxes') UI.renderTaxes();
-    };
-
-    addListener('year-filter', 'change', (e) => updateFilter('year', e.target.value));
-    addListener('month-filter', 'change', (e) => updateFilter('month', e.target.value));
-    addListener('mobile-year-filter', 'change', (e) => updateFilter('year', e.target.value));
-    addListener('mobile-month-filter', 'change', (e) => updateFilter('month', e.target.value));
-
-    // Search Listeners
+    // NEW: Search Listeners
     addListener('tx-search', 'input', () => UI.renderTransactions());
     addListener('ar-search', 'input', () => UI.renderSimpleTable('ar', 'ar-container'));
     addListener('ap-search', 'input', () => UI.renderSimpleTable('ap', 'ap-container'));
     
+    // NEW: Report Search
     addListener('report-search', 'input', () => {
-        const activeReport = document.querySelector('.rep-tab.border-b-2.border-brand-600');
-        if(activeReport) UI.switchReport(activeReport.id.replace('rep-tab-', ''));
+         // Dynamically find active report tab and refresh it
+         const active = document.querySelector('.rep-tab.border-brand-600');
+         if(active) {
+             const type = active.id.replace('rep-tab-', '');
+             UI.switchReport(type);
+         }
     });
 
-    // Rec All
+    // NEW: Rec All Checkbox
     addListener('rec-all-checkbox', 'change', (e) => Handlers.toggleAllRec(e.target.checked));
 
     // Calculators
     addListener('tax-rate-input', 'input', () => UI.renderTaxes());
     addListener('recon-input', 'input', () => UI.updateReconCalc());
 
-    // --- Actions ---
+    // Date Filters
+    const updateFilter = (field, val) => { State.filters[field] = val; Handlers.refreshAll(); };
+    addListener('year-filter', 'change', (e) => updateFilter('year', e.target.value));
+    addListener('month-filter', 'change', (e) => updateFilter('month', e.target.value));
+    addListener('mobile-year-filter', 'change', (e) => updateFilter('year', e.target.value));
+    addListener('mobile-month-filter', 'change', (e) => updateFilter('month', e.target.value));
+
+    // Buttons
     addListener('save-session-btn', 'click', Handlers.saveSession);
     addListener('btn-add-rule', 'click', Handlers.addRule);
     addListener('btn-save-tx', 'click', Handlers.saveTransactionEdit);
@@ -55,17 +55,12 @@ document.addEventListener('DOMContentLoaded', () => {
     addListener('btn-confirm-clear', 'click', Handlers.clearData);
     addListener('btn-add-cat', 'click', Handlers.addCategory);
     addListener('btn-export', 'click', Handlers.exportToIIF);
-    
-    // --- Enter Key Support for Inputs ---
-    document.getElementById('rule-keyword')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') Handlers.addRule();
-    });
-    
-    document.getElementById('new-cat-name')?.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') Handlers.addCategory();
-    });
 
-    // --- Auth ---
+    // Enter Key
+    document.getElementById('rule-keyword')?.addEventListener('keypress', (e) => { if(e.key==='Enter') Handlers.addRule(); });
+    document.getElementById('new-cat-name')?.addEventListener('keypress', (e) => { if(e.key==='Enter') Handlers.addCategory(); });
+
+    // Auth
     addListener('login-btn', 'click', () => signInWithPopup(auth, provider));
     addListener('logout-btn', 'click', () => signOut(auth));
 
@@ -73,14 +68,11 @@ document.addEventListener('DOMContentLoaded', () => {
         State.user = user;
         const loginBtn = document.getElementById('login-btn');
         const profile = document.getElementById('user-profile');
-        const name = document.getElementById('user-name');
-        const avatar = document.getElementById('user-avatar');
-
         if(user) {
             if(loginBtn) loginBtn.classList.add('hidden');
             if(profile) profile.classList.remove('hidden');
-            if(name) name.textContent = user.displayName;
-            if(avatar) avatar.src = user.photoURL;
+            document.getElementById('user-name').textContent = user.displayName;
+            document.getElementById('user-avatar').src = user.photoURL;
             Handlers.loadSession();
         } else {
             if(loginBtn) loginBtn.classList.remove('hidden');
